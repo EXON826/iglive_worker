@@ -1,0 +1,11 @@
+# Worker process requirements
+
+SQLAlchemy>=1.4
+psycopg2-binary>=2.9
+telethon>=1.28
+python-dotenv>=0.20
+httpx>=0.23
+requests>=2.28
+supabase>=2.3
+instagrapi>=1.16  # For Instagram API access
+flask>=3.0  # For web-based verification code handler
