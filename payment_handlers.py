@@ -16,8 +16,10 @@ PAYMENT_PACKAGES = {
     'points_50': {'stars': 50, 'points': 50, 'title': '50 Points', 'desc': 'Get 50 points instantly'},
     'points_100': {'stars': 90, 'points': 100, 'title': '100 Points', 'desc': 'Get 100 points (10% bonus)'},
     'points_500': {'stars': 400, 'points': 500, 'title': '500 Points', 'desc': 'Get 500 points (20% bonus)'},
-    'premium_7d': {'stars': 1, 'days': 7, 'title': '7 Days Premium', 'desc': 'Unlimited checks for 7 days'},
+    'premium_7d': {'stars': 150, 'days': 7, 'title': '7 Days Premium', 'desc': 'Unlimited checks for 7 days'},
     'premium_30d': {'stars': 500, 'days': 30, 'title': '30 Days Premium', 'desc': 'Unlimited checks for 30 days'},
+    'premium_6m': {'stars': 2500, 'days': 180, 'title': '6 Months Premium', 'desc': 'Unlimited checks for 6 months (Save 17%)'},
+    'premium_1y': {'stars': 4500, 'days': 365, 'title': '1 Year Premium', 'desc': 'Unlimited checks for 1 year (Save 25%)'},
 }
 
 
@@ -43,8 +45,10 @@ async def buy_handler(session: Session, payload: dict):
         buy_text += "  • 100 Points - ⭐ 90 Stars (10% bonus)\n"
         buy_text += "  • 500 Points - ⭐ 400 Stars (20% bonus)\n\n"
         buy_text += "🌟 *Premium Packages:*\n"
-        buy_text += "  • 7 Days - ⭐ 1 Star (Test Price!)\n"
-        buy_text += "  • 30 Days - ⭐ 500 Stars\n\n"
+        buy_text += "  • 7 Days - ⭐ 150 Stars\n"
+        buy_text += "  • 30 Days - ⭐ 500 Stars\n"
+        buy_text += "  • 6 Months - ⭐ 2,500 Stars (Save 17%)\n"
+        buy_text += "  • 1 Year - ⭐ 4,500 Stars (Save 25%)\n\n"
         buy_text += "✨ Premium = Unlimited checks!\n"
         buy_text += "💳 Pay with Telegram Stars"
 
@@ -53,8 +57,10 @@ async def buy_handler(session: Session, payload: dict):
                 [{"text": "💎 50 Points (⭐ 50)", "callback_data": "pay:points_50"}],
                 [{"text": "💎 100 Points (⭐ 90)", "callback_data": "pay:points_100"}],
                 [{"text": "💎 500 Points (⭐ 400)", "callback_data": "pay:points_500"}],
-                [{"text": "🌟 7 Days Premium (⭐ 1)", "callback_data": "pay:premium_7d"}],
-                [{"text": "🌟 30 Days Premium (⭐ 500)", "callback_data": "pay:premium_30d"}],
+                [{"text": "🌟 7 Days (⭐ 150)", "callback_data": "pay:premium_7d"}],
+                [{"text": "🌟 30 Days (⭐ 500)", "callback_data": "pay:premium_30d"}],
+                [{"text": "🌟 6 Months (⭐ 2,500)", "callback_data": "pay:premium_6m"}],
+                [{"text": "🌟 1 Year (⭐ 4,500)", "callback_data": "pay:premium_1y"}],
                 [{"text": "⬅️ Back", "callback_data": "back"}]
             ]
         }
@@ -107,7 +113,9 @@ async def payment_handler(session: Session, payload: dict):
 
 
 async def pre_checkout_handler(session: Session, payload: dict):
-    """Handle pre-checkout query."""
+    """Handle pre-checkout query - MUST respond within 10 seconds."""
+    helper = TelegramHelper()
+    
     try:
         pre_checkout_query = payload.get('pre_checkout_query', {})
         query_id = pre_checkout_query.get('id')
@@ -115,33 +123,49 @@ async def pre_checkout_handler(session: Session, payload: dict):
         sender_id = from_user.get('id')
         invoice_payload = pre_checkout_query.get('invoice_payload', '')
 
+        logger.info(f"Pre-checkout query received: {query_id} from user {sender_id}")
+
         if not query_id:
+            logger.error("No query_id in pre_checkout_query")
             return
 
-        # Validate payment
+        # Validate payment quickly
         try:
+            if ':' not in invoice_payload:
+                raise ValueError("Invalid payload format")
+            
             package_id, user_id = invoice_payload.split(':')
             user_id = int(user_id)
 
             if user_id != sender_id:
-                raise ValueError("User ID mismatch")
+                logger.error(f"User ID mismatch: {user_id} != {sender_id}")
+                await helper.answer_pre_checkout_query(query_id, ok=False, error_message="User verification failed")
+                return
 
             if package_id not in PAYMENT_PACKAGES:
-                raise ValueError("Invalid package")
+                logger.error(f"Invalid package: {package_id}")
+                await helper.answer_pre_checkout_query(query_id, ok=False, error_message="Invalid package")
+                return
 
-            # Approve payment
-            helper = TelegramHelper()
+            # All checks passed - approve immediately
             await helper.answer_pre_checkout_query(query_id, ok=True)
-            logger.info(f"Pre-checkout approved for {sender_id}, package: {package_id}")
+            logger.info(f"✅ Pre-checkout APPROVED for {sender_id}, package: {package_id}")
 
+        except ValueError as e:
+            logger.error(f"Validation error: {e}")
+            await helper.answer_pre_checkout_query(query_id, ok=False, error_message="Payment validation failed")
         except Exception as e:
-            logger.error(f"Pre-checkout validation failed: {e}")
-            helper = TelegramHelper()
-            await helper.answer_pre_checkout_query(query_id, ok=False, error_message="Invalid payment")
+            logger.error(f"Pre-checkout validation failed: {e}", exc_info=True)
+            await helper.answer_pre_checkout_query(query_id, ok=False, error_message="Payment processing error")
 
     except Exception as e:
-        logger.error(f"Error in pre_checkout_handler: {e}", exc_info=True)
-        raise
+        logger.error(f"Critical error in pre_checkout_handler: {e}", exc_info=True)
+        # Try to respond even on error
+        if 'query_id' in locals():
+            try:
+                await helper.answer_pre_checkout_query(query_id, ok=False, error_message="System error")
+            except:
+                pass
 
 
 async def successful_payment_handler(session: Session, payload: dict):
