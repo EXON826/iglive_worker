@@ -16,7 +16,7 @@ PAYMENT_PACKAGES = {
     'points_50': {'stars': 50, 'points': 50, 'title': '50 Points', 'desc': 'Get 50 points instantly'},
     'points_100': {'stars': 90, 'points': 100, 'title': '100 Points', 'desc': 'Get 100 points (10% bonus)'},
     'points_500': {'stars': 400, 'points': 500, 'title': '500 Points', 'desc': 'Get 500 points (20% bonus)'},
-    'premium_7d': {'stars': 150, 'days': 7, 'title': '7 Days Premium', 'desc': 'Unlimited checks for 7 days'},
+    'premium_7d': {'stars': 1, 'days': 7, 'title': '7 Days Premium', 'desc': 'Unlimited checks for 7 days'},
     'premium_30d': {'stars': 500, 'days': 30, 'title': '30 Days Premium', 'desc': 'Unlimited checks for 30 days'},
 }
 
@@ -43,7 +43,7 @@ async def buy_handler(session: Session, payload: dict):
         buy_text += "  • 100 Points - ⭐ 90 Stars (10% bonus)\n"
         buy_text += "  • 500 Points - ⭐ 400 Stars (20% bonus)\n\n"
         buy_text += "🌟 *Premium Packages:*\n"
-        buy_text += "  • 7 Days - ⭐ 150 Stars\n"
+        buy_text += "  • 7 Days - ⭐ 1 Star (Test Price!)\n"
         buy_text += "  • 30 Days - ⭐ 500 Stars\n\n"
         buy_text += "✨ Premium = Unlimited checks!\n"
         buy_text += "💳 Pay with Telegram Stars"
@@ -53,7 +53,7 @@ async def buy_handler(session: Session, payload: dict):
                 [{"text": "💎 50 Points (⭐ 50)", "callback_data": "pay:points_50"}],
                 [{"text": "💎 100 Points (⭐ 90)", "callback_data": "pay:points_100"}],
                 [{"text": "💎 500 Points (⭐ 400)", "callback_data": "pay:points_500"}],
-                [{"text": "🌟 7 Days Premium (⭐ 150)", "callback_data": "pay:premium_7d"}],
+                [{"text": "🌟 7 Days Premium (⭐ 1)", "callback_data": "pay:premium_7d"}],
                 [{"text": "🌟 30 Days Premium (⭐ 500)", "callback_data": "pay:premium_30d"}],
                 [{"text": "⬅️ Back", "callback_data": "back"}]
             ]
