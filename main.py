@@ -25,6 +25,12 @@ from handlers import (
     set_initial_language_handler,
     change_language_handler,
 )
+from payment_handlers import (
+    buy_handler,
+    payment_handler,
+    pre_checkout_handler,
+    successful_payment_handler,
+)
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -59,13 +65,17 @@ async def process_job(job, session_factory):
     try:
         if job_type == 'process_telegram_update':
             if 'message' in payload:
-                text = payload['message'].get('text', '').strip()
-                if text.startswith('/start'):
-                    await start_handler(session, payload)
-                elif text.startswith('/init'):
-                    await init_handler(session, payload)
-                elif text.startswith('/activate'):
-                    await activate_handler(session, payload)
+                # Check for successful payment first
+                if 'successful_payment' in payload['message']:
+                    await successful_payment_handler(session, payload)
+                else:
+                    text = payload['message'].get('text', '').strip()
+                    if text.startswith('/start'):
+                        await start_handler(session, payload)
+                    elif text.startswith('/init'):
+                        await init_handler(session, payload)
+                    elif text.startswith('/activate'):
+                        await activate_handler(session, payload)
             elif 'callback_query' in payload:
                 callback_data = payload['callback_query'].get('data')
                 if callback_data == 'my_account':
@@ -80,12 +90,18 @@ async def process_job(job, session_factory):
                     await referrals_handler(session, payload)
                 elif callback_data == 'settings':
                     await settings_handler(session, payload)
+                elif callback_data == 'buy':
+                    await buy_handler(session, payload)
+                elif callback_data.startswith('pay:'):
+                    await payment_handler(session, payload)
                 elif callback_data.startswith('setlang:'):
                     await set_initial_language_handler(session, payload)
                 elif callback_data.startswith('lang:'):
                     await change_language_handler(session, payload)
                 else:
                     logger.info(f"No handler for callback_data: '{callback_data}'")
+            elif 'pre_checkout_query' in payload:
+                await pre_checkout_handler(session, payload)
             elif 'chat_join_request' in payload:
                 await join_request_handler(session, payload)
             else:

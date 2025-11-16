@@ -106,6 +106,10 @@ class UserBot(Base):
     is_active = Column(Boolean, default=True)
     owner = relationship("TelegramUser", back_populates="user_bots")
 
+class Bot(Base):
+    __tablename__ = 'bots'
+    bot_token = Column(String, primary_key=True, nullable=False)
+
 class Referral(Base):
     __tablename__ = 'referrals'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -146,3 +150,15 @@ class Job(Base):
     retries = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+class StarPayment(Base):
+    __tablename__ = 'star_payments'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(BIGINT, ForeignKey('telegram_users.id'), nullable=False)
+    telegram_payment_charge_id = Column(String, unique=True, nullable=False)
+    amount = Column(Integer, nullable=False)
+    package_type = Column(String, nullable=False)
+    status = Column(String, default='pending', nullable=False)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    completed_at = Column(DateTime)
+    user = relationship("TelegramUser")

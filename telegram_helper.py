@@ -149,3 +149,46 @@ class TelegramHelper:
             bot_id = bot_info['result']['id']
             return await self.is_user_admin(chat_id, bot_id)
         return False
+
+    async def send_invoice(self, chat_id, title, description, payload, currency, prices):
+        """Send an invoice for Telegram Stars payment."""
+        invoice_payload = {
+            'chat_id': chat_id,
+            'title': title,
+            'description': description,
+            'payload': payload,
+            'currency': currency,
+            'prices': prices
+        }
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                response = await client.post(f"{self.base_url}/sendInvoice", json=invoice_payload)
+                response.raise_for_status()
+                logger.info(f"Invoice sent to {chat_id}")
+                return response.json()
+            except httpx.HTTPStatusError as e:
+                logger.error(f"Error sending invoice to {chat_id}: {e.response.text}")
+                return None
+            except httpx.RequestError as e:
+                logger.error(f"Network error sending invoice: {e}")
+                return None
+
+    async def answer_pre_checkout_query(self, pre_checkout_query_id, ok, error_message=None):
+        """Answer pre-checkout query."""
+        payload = {'pre_checkout_query_id': pre_checkout_query_id, 'ok': ok}
+        if error_message:
+            payload['error_message'] = error_message
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                response = await client.post(f"{self.base_url}/answerPreCheckoutQuery", json=payload)
+                response.raise_for_status()
+                logger.info(f"Pre-checkout query answered: {ok}")
+                return response.json()
+            except httpx.HTTPStatusError as e:
+                logger.error(f"Error answering pre-checkout query: {e.response.text}")
+                return None
+            except httpx.RequestError as e:
+                logger.error(f"Network error answering pre-checkout: {e}")
+                return None

@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 
 from models import TelegramUser, ChatGroup
 from telegram_helper import TelegramHelper
-from instagram_checker import get_currently_live_users
 from translations import get_text, detect_language, LANGUAGE_NAMES
 
 logger = logging.getLogger(__name__)
@@ -273,6 +272,9 @@ async def my_account_handler(session: Session, payload: dict):
         buttons = {
             "inline_keyboard": [
                 [
+                    {"text": "⭐ Buy Points/Premium", "callback_data": "buy"}
+                ],
+                [
                     {"text": "🎁 Get Referral Link", "callback_data": "referrals"}
                 ],
                 [
@@ -340,8 +342,8 @@ async def check_live_handler(session: Session, payload: dict):
                 await send_user_feedback(sender_id, no_points_msg)
                 return
         
-        # Get live users
-        live_users = await get_currently_live_users(session)
+        # Get live users (placeholder - implement your own live tracking)
+        live_users = []  # TODO: Implement live user tracking
         
         # Pagination setup
         PER_PAGE = 10
