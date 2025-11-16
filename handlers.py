@@ -244,7 +244,13 @@ async def my_account_handler(session: Session, payload: dict):
             await send_user_feedback(sender_id, "❌ Please use /start first to register.")
             return
 
-        is_unlimited = user.subscription_end and user.subscription_end > datetime.now(timezone.utc)
+        # Fix timezone comparison
+        now_utc = datetime.now(timezone.utc)
+        if user.subscription_end:
+            sub_end = user.subscription_end if user.subscription_end.tzinfo else user.subscription_end.replace(tzinfo=timezone.utc)
+            is_unlimited = sub_end > now_utc
+        else:
+            is_unlimited = False
         
         # Create visual account card
         account_text = "👤 *YOUR ACCOUNT*\n"
@@ -324,7 +330,12 @@ async def check_live_handler(session: Session, payload: dict):
             return
 
         # Check points/subscription (only deduct on first page)
-        is_unlimited = user.subscription_end and user.subscription_end > datetime.now(timezone.utc)
+        now_utc = datetime.now(timezone.utc)
+        if user.subscription_end:
+            sub_end = user.subscription_end if user.subscription_end.tzinfo else user.subscription_end.replace(tzinfo=timezone.utc)
+            is_unlimited = sub_end > now_utc
+        else:
+            is_unlimited = False
         if not is_unlimited and page == 1:
             if user.points > 0:
                 user.points -= 1
