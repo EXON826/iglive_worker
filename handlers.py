@@ -73,6 +73,9 @@ async def send_main_menu(user_id: int, prefix_message: str = "", username: str =
                     {"text": get_text('referrals', lang), "callback_data": "referrals"}
                 ],
                 [
+                    {"text": "⭐ Buy Premium", "callback_data": "buy"}
+                ],
+                [
                     {"text": get_text('help', lang), "callback_data": "help"},
                     {"text": get_text('settings', lang), "callback_data": "settings"}
                 ]
@@ -584,6 +587,9 @@ async def back_handler(session: Session, payload: dict):
                 [
                     {"text": "👤 My Account", "callback_data": "my_account"},
                     {"text": "🎁 Referrals", "callback_data": "referrals"}
+                ],
+                [
+                    {"text": "⭐ Buy Premium", "callback_data": "buy"}
                 ],
                 [
                     {"text": "ℹ️ Help", "callback_data": "help"}
