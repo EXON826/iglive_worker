@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 PAYMENT_PACKAGES = {
     'premium_7d': {'stars': 150, 'days': 7, 'title': '7 Days Premium'},
-    'premium_30d': {'stars': 1, 'days': 30, 'title': '30 Days Premium'},
+    'premium_30d': {'stars': 500, 'days': 30, 'title': '30 Days Premium'},
 }
 
 def check_premium_status(session: Session, user_id: int) -> bool:
@@ -58,7 +58,7 @@ async def buy_handler(session: Session, payload: dict):
         buy_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
         buy_text += "🌟 *Premium Packages:*\n"
         buy_text += "  • 7 Days - ⭐ 150 Stars\n"
-        buy_text += "  • 30 Days - ⭐ 1 Star\n\n"
+        buy_text += "  • 30 Days - ⭐ 500 Stars\n\n"
         buy_text += "✨ *Premium Benefits:*\n"
         buy_text += "  ✅ Unlimited checks 24/7\n"
         buy_text += "  🔔 Live notifications\n"
@@ -66,7 +66,7 @@ async def buy_handler(session: Session, payload: dict):
 
         buttons = {"inline_keyboard": [
             [{"text": "🌟 7 Days - ⭐ 150", "callback_data": "pay:premium_7d"}],
-            [{"text": "🌟 30 Days - ⭐ 1", "callback_data": "pay:premium_30d"}],
+            [{"text": "🌟 30 Days - ⭐ 500", "callback_data": "pay:premium_30d"}],
             [{"text": "⬅️ Back", "callback_data": "back"}]
         ]}
 
