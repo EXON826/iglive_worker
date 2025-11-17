@@ -552,11 +552,11 @@ async def check_live_handler(session: Session, payload: dict):
             for idx, user_data in enumerate(page_users, 1):
                 username = user_data['username']
                 link = user_data.get('link', f"https://instagram.com/{username.lstrip('@')}")
-                total_lives = user_data.get('total_lives', 0)
+                total_lives = user_data.get('total_lives') or 0
                 
                 # Add metadata
                 live_message += f"{idx}. 🔴 *[{username}]({link})*\n"
-                if total_lives > 0:
+                if total_lives and total_lives > 0:
                     live_message += f"   📊 Total lives: {total_lives}\n"
         else:
             live_message = "🔴 *LIVE NOW*\n"
@@ -1050,4 +1050,50 @@ async def activate_handler(session: Session, payload: dict):
 
     except Exception as e:
         logger.error(f"Error in activate_handler: {e}", exc_info=True)
+        raise
+
+
+async def notify_live_handler(session: Session, payload: dict):
+    """Send live notifications to premium users."""
+    try:
+        username = payload.get('username')
+        link = payload.get('link')
+        
+        if not username or not link:
+            logger.error(f"Invalid notify_live payload: {payload}")
+            return
+        
+        now_utc = datetime.now(timezone.utc)
+        query = text("""
+            SELECT id, first_name, language 
+            FROM telegram_users 
+            WHERE subscription_end > :now
+        """)
+        premium_users = session.execute(query, {'now': now_utc}).fetchall()
+        
+        if not premium_users:
+            logger.info(f"No premium users to notify for {username}")
+            return
+        
+        logger.info(f"🔴 Notifying {len(premium_users)} premium users about {username}")
+        
+        helper = TelegramHelper()
+        success_count = 0
+        
+        for user_id, first_name, lang in premium_users:
+            try:
+                notification = f"🔴 *LIVE NOW!*\n\n"
+                notification += f"*{username}* just started streaming!\n\n"
+                notification += f"[Watch Now]({link})"
+                
+                await helper.send_message(user_id, notification, parse_mode="Markdown")
+                success_count += 1
+                await asyncio.sleep(0.05)
+            except Exception as e:
+                logger.error(f"Failed to notify user {user_id}: {e}")
+        
+        logger.info(f"✅ Sent {success_count}/{len(premium_users)} notifications for {username}")
+        
+    except Exception as e:
+        logger.error(f"Error in notify_live_handler: {e}", exc_info=True)
         raise

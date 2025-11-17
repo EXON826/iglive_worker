@@ -16,6 +16,7 @@ from handlers import (
     check_live_handler,
     join_request_handler,
     broadcast_message_handler,
+    notify_live_handler,
     init_handler,
     activate_handler,
     back_handler,
@@ -110,6 +111,9 @@ async def process_job(job, session_factory):
         
         elif job_type == 'broadcast_message':
             await broadcast_message_handler(session, payload)
+
+        elif job_type == 'notify_live':
+            await notify_live_handler(session, payload)
 
         else:
             logger.warning(f"Unknown job_type: {job_type}")
