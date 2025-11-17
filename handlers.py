@@ -108,9 +108,9 @@ async def send_main_menu(user_id: int, prefix_message: str = "", username: str =
                         is_premium = False
                     
                     if is_premium:
-                        menu_text += "╔════════════════╗\n"
+                        menu_text += "╔═════════════╗\n"
                         menu_text += "  💎 PREMIUM USER  \n"
-                        menu_text += "╚════════════════╝\n"
+                        menu_text += "╚═════════════╝\n"
                     else:
                         points_bar = get_animated_progress_bar(user.points, 3, 10)
                         percentage = int((user.points / 3) * 100)
@@ -339,9 +339,9 @@ async def my_account_handler(session: Session, payload: dict):
         
         if is_unlimited:
             days_left = (sub_end - now_utc).days
-            account_text += "╔════════════════╗\n"
+            account_text += "╔═════════════╗\n"
             account_text += "  💎 PREMIUM USER  \n"
-            account_text += "╚════════════════╝\n\n"
+            account_text += "╚═════════════╝\n\n"
             account_text += f"✅ Unlimited Checks\n"
             account_text += f"📅 Valid Until: {user.subscription_end.strftime('%b %d, %Y')}\n"
             account_text += f"⏳ Days Left: {days_left} days\n"
