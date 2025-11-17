@@ -28,6 +28,9 @@ TRANSLATIONS = {
         'current_language': '🌍 *Current Language:* {language}',
         'select_language': 'Select your preferred language:',
         'language_changed': '✅ Language changed to {language}',
+        'language_set': '✅ Language set successfully!',
+        'back': '⬅️ Back',
+        'change_language': '🌍 Change Language',
     },
     'ru': {
         'welcome': '🎉 *Добро пожаловать в IGLiveZBot!*',
@@ -55,6 +58,9 @@ TRANSLATIONS = {
         'current_language': '🌍 *Текущий язык:* {language}',
         'select_language': 'Выберите предпочитаемый язык:',
         'language_changed': '✅ Язык изменён на {language}',
+        'language_set': '✅ Язык успешно установлен!',
+        'back': '⬅️ Назад',
+        'change_language': '🌍 Изменить язык',
     },
     'es': {
         'welcome': '🎉 *¡Bienvenido a IGLiveZBot!*',
@@ -82,6 +88,9 @@ TRANSLATIONS = {
         'current_language': '🌍 *Idioma actual:* {language}',
         'select_language': 'Selecciona tu idioma preferido:',
         'language_changed': '✅ Idioma cambiado a {language}',
+        'language_set': '✅ ¡Idioma configurado correctamente!',
+        'back': '⬅️ Atrás',
+        'change_language': '🌍 Cambiar idioma',
     },
     'pt': {
         'welcome': '🎉 *Bem-vindo ao IGLiveZBot!*',
@@ -109,6 +118,9 @@ TRANSLATIONS = {
         'current_language': '🌍 *Idioma atual:* {language}',
         'select_language': 'Selecione seu idioma preferido:',
         'language_changed': '✅ Idioma alterado para {language}',
+        'language_set': '✅ Idioma configurado com sucesso!',
+        'back': '⬅️ Voltar',
+        'change_language': '🌍 Alterar idioma',
     },
     'ar': {
         'welcome': '🎉 *مرحباً بك في IGLiveZBot!*',
@@ -136,6 +148,9 @@ TRANSLATIONS = {
         'current_language': '🌍 *اللغة الحالية:* {language}',
         'select_language': 'اختر لغتك المفضلة:',
         'language_changed': '✅ تم تغيير اللغة إلى {language}',
+        'language_set': '✅ تم تعيين اللغة بنجاح!',
+        'back': '⬅️ عودة',
+        'change_language': '🌍 تغيير اللغة',
     },
     'it': {
         'welcome': '🎉 *Benvenuto in IGLiveZBot!*',
@@ -163,6 +178,9 @@ TRANSLATIONS = {
         'current_language': '🌍 *Lingua attuale:* {language}',
         'select_language': 'Seleziona la tua lingua preferita:',
         'language_changed': '✅ Lingua cambiata in {language}',
+        'language_set': '✅ Lingua impostata con successo!',
+        'back': '⬅️ Indietro',
+        'change_language': '🌍 Cambia lingua',
     },
     'fr': {
         'welcome': '🎉 *Bienvenue sur IGLiveZBot!*',
@@ -190,6 +208,9 @@ TRANSLATIONS = {
         'current_language': '🌍 *Langue actuelle:* {language}',
         'select_language': 'Sélectionnez votre langue préférée:',
         'language_changed': '✅ Langue changée en {language}',
+        'language_set': '✅ Langue définie avec succès!',
+        'back': '⬅️ Retour',
+        'change_language': '🌍 Changer de langue',
     },
     'de': {
         'welcome': '🎉 *Willkommen bei IGLiveZBot!*',
@@ -217,6 +238,9 @@ TRANSLATIONS = {
         'current_language': '🌍 *Aktuelle Sprache:* {language}',
         'select_language': 'Wähle deine bevorzugte Sprache:',
         'language_changed': '✅ Sprache auf {language} geändert',
+        'language_set': '✅ Sprache erfolgreich eingestellt!',
+        'back': '⬅️ Zurück',
+        'change_language': '🌍 Sprache ändern',
     },
 }
 

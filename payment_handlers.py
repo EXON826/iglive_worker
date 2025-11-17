@@ -42,25 +42,30 @@ async def buy_handler(session: Session, payload: dict):
         buy_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
         buy_text += "💎 *Points Packages:*\n"
         buy_text += "  • 50 Points - ⭐ 50 Stars\n"
-        buy_text += "  • 100 Points - ⭐ 90 Stars (10% bonus)\n"
-        buy_text += "  • 500 Points - ⭐ 400 Stars (20% bonus)\n\n"
+        buy_text += "  • 100 Points - ⭐ 90 Stars 🎁 +10% bonus\n"
+        buy_text += "  • 500 Points - ⭐ 400 Stars 🎁 +20% bonus\n\n"
         buy_text += "🌟 *Premium Packages:*\n"
         buy_text += "  • 7 Days - ⭐ 150 Stars\n"
-        buy_text += "  • 30 Days - ⭐ 500 Stars\n"
-        buy_text += "  • 6 Months - ⭐ 2,500 Stars (Save 17%)\n"
-        buy_text += "  • 1 Year - ⭐ 4,500 Stars (Save 25%)\n\n"
-        buy_text += "✨ Premium = Unlimited checks!\n"
-        buy_text += "💳 Pay with Telegram Stars"
+        buy_text += "  • 30 Days - ⭐ 500 Stars 🔥 Most Popular\n"
+        buy_text += "  • 6 Months - ⭐ 2,500 Stars 💰 Save 17%\n"
+        buy_text += "  • 1 Year - ⭐ 4,500 Stars 🏆 Save 25%\n\n"
+        buy_text += "━━━━━━━━━━━━━━━━━━━━\n"
+        buy_text += "✨ *Premium Benefits:*\n"
+        buy_text += "  ✅ Unlimited checks 24/7\n"
+        buy_text += "  ⚡ No daily limits\n"
+        buy_text += "  🔔 Priority support\n\n"
+        buy_text += "💳 Pay securely with Telegram Stars"
 
         buttons = {
             "inline_keyboard": [
-                [{"text": "💎 50 Points (⭐ 50)", "callback_data": "pay:points_50"}],
-                [{"text": "💎 100 Points (⭐ 90)", "callback_data": "pay:points_100"}],
-                [{"text": "💎 500 Points (⭐ 400)", "callback_data": "pay:points_500"}],
-                [{"text": "🌟 7 Days (⭐ 150)", "callback_data": "pay:premium_7d"}],
-                [{"text": "🌟 30 Days (⭐ 500) 🔥 POPULAR", "callback_data": "pay:premium_30d"}],
-                [{"text": "🌟 6 Months (⭐ 2,500)", "callback_data": "pay:premium_6m"}],
-                [{"text": "🌟 1 Year (⭐ 4,500)", "callback_data": "pay:premium_1y"}],
+                [{"text": "💎 50 Points - ⭐ 50", "callback_data": "pay:points_50"}],
+                [{"text": "💎 100 Points - ⭐ 90 🎁", "callback_data": "pay:points_100"}],
+                [{"text": "💎 500 Points - ⭐ 400 🎁", "callback_data": "pay:points_500"}],
+                [{"text": "━━━━━━━━━━━━━━━━━━━━", "callback_data": "ignore"}],
+                [{"text": "🌟 7 Days - ⭐ 150", "callback_data": "pay:premium_7d"}],
+                [{"text": "🌟 30 Days - ⭐ 500 🔥", "callback_data": "pay:premium_30d"}],
+                [{"text": "🌟 6 Months - ⭐ 2,500 💰", "callback_data": "pay:premium_6m"}],
+                [{"text": "🌟 1 Year - ⭐ 4,500 🏆", "callback_data": "pay:premium_1y"}],
                 [{"text": "⬅️ Back", "callback_data": "back"}]
             ]
         }

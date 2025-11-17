@@ -47,7 +47,7 @@ async def send_user_feedback(user_id: int, message: str):
         logger.error(f"Failed to send feedback to {user_id}: {e}", exc_info=True)
 
 
-async def send_main_menu(user_id: int, prefix_message: str = "", username: str = None, lang: str = 'en'):
+async def send_main_menu(user_id: int, prefix_message: str = "", username: str = None, lang: str = 'en', session: Session = None):
     """Send the main menu to a user with improved UI."""
     try:
         # Greeting personalization
@@ -56,6 +56,34 @@ async def send_main_menu(user_id: int, prefix_message: str = "", username: str =
         menu_text = f"{prefix_message}{greeting}\n\n"
         menu_text += get_text('bot_title', lang) + "\n"
         menu_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
+        
+        # Add quick stats if session provided
+        if session:
+            try:
+                user = session.query(TelegramUser).filter_by(id=user_id).first()
+                if user:
+                    # Check if premium
+                    now_utc = datetime.now(timezone.utc)
+                    if user.subscription_end:
+                        sub_end = user.subscription_end if user.subscription_end.tzinfo else user.subscription_end.replace(tzinfo=timezone.utc)
+                        is_premium = sub_end > now_utc
+                    else:
+                        is_premium = False
+                    
+                    if is_premium:
+                        menu_text += "💎 *Status:* Premium ✨\n"
+                    else:
+                        # Visual progress bar for points
+                        points_bar = "█" * user.points + "░" * (3 - user.points)
+                        menu_text += f"💰 *Points:* {user.points}/3 [{points_bar}]\n"
+                    
+                    # Get live count
+                    live_count = session.execute(text("SELECT COUNT(*) FROM insta_links WHERE is_live = TRUE")).scalar()
+                    menu_text += f"🔴 *Live Now:* {live_count} streams\n\n"
+                    menu_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
+            except:
+                pass
+        
         menu_text += get_text('track_ig_live', lang) + "\n"
         menu_text += f"     {get_text('track_ig_desc', lang)}\n\n"
         menu_text += get_text('smart_points', lang) + "\n"
@@ -218,7 +246,7 @@ async def start_handler(session: Session, payload: dict):
             user.last_seen = datetime.now(timezone.utc)
             session.commit()
 
-        await send_main_menu(user.id, prefix_message, username, user.language)
+        await send_main_menu(user.id, prefix_message, username, user.language, session)
 
     except Exception as e:
         logger.error(f"Error in start_handler for user {sender_id}: {e}", exc_info=True)
@@ -256,6 +284,9 @@ async def my_account_handler(session: Session, payload: dict):
         else:
             is_unlimited = False
         
+        # Count total checks (approximate from points used)
+        referral_count = session.query(TelegramUser).filter_by(referred_by_id=user.id).count()
+        
         # Create visual account card
         account_text = "👤 *YOUR ACCOUNT*\n"
         account_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -263,17 +294,21 @@ async def my_account_handler(session: Session, payload: dict):
         account_text += f"👤 *Name:* {user.first_name}\n"
         account_text += f"🆔 *Username:* @{user.username or 'Not set'}\n"
         account_text += f"🔢 *User ID:* `{user.id}`\n"
-        account_text += f"📅 *Joined:* {user.last_seen.strftime('%b %d, %Y') if user.last_seen else 'Unknown'}\n\n"
+        account_text += f"📅 *Joined:* {user.last_seen.strftime('%b %d, %Y') if user.last_seen else 'Unknown'}\n"
+        account_text += f"👥 *Referrals:* {referral_count} friends\n\n"
         
         if is_unlimited:
+            days_left = (sub_end - now_utc).days
             account_text += "💎 *PREMIUM STATUS*\n"
             account_text += "━━━━━━━━━━━━━━━━━━━━\n"
             account_text += f"✅ Unlimited Checks\n"
             account_text += f"📅 Valid Until: {user.subscription_end.strftime('%b %d, %Y')}\n"
+            account_text += f"⏳ Days Left: {days_left} days\n"
         else:
+            points_bar = "█" * user.points + "░" * (3 - user.points)
             account_text += "💰 *FREE ACCOUNT*\n"
             account_text += "━━━━━━━━━━━━━━━━━━━━\n"
-            account_text += f"💎 Points: *{user.points}/3*\n"
+            account_text += f"💎 Points: *{user.points}/3* [{points_bar}]\n"
             account_text += f"🔄 Resets: Daily at midnight UTC\n\n"
             account_text += "❌ *What you're missing:*\n"
             account_text += "  • Unlimited checks\n"
@@ -411,17 +446,23 @@ async def check_live_handler(session: Session, payload: dict):
             else:
                 live_message += f"Found *{total_users}* live stream{'s' if total_users != 1 else ''}!\n\n"
             
-            for user_data in page_users:
+            for idx, user_data in enumerate(page_users, 1):
                 username = user_data['username']
                 link = user_data.get('link', f"https://instagram.com/{username.lstrip('@')}")
+                total_lives = user_data.get('total_lives', 0)
                 
-                live_message += f"▸ 🔴 *[{username}]({link})*\n"
+                # Add metadata
+                live_message += f"{idx}. 🔴 *[{username}]({link})*\n"
+                if total_lives > 0:
+                    live_message += f"   📊 Total lives: {total_lives}\n"
         else:
             live_message = "🔴 *LIVE NOW*\n"
             live_message += "━━━━━━━━━━━━━━━━━━━━\n\n"
-            live_message += "😴 No one is live right now.\n\n"
-            live_message += "💡 Live streams are tracked in real-time.\n"
-            live_message += "   Check back in a few minutes!\n"
+            live_message += "😴 *No one is live right now.*\n\n"
+            live_message += "💡 *What you can do:*\n"
+            live_message += "  • Check back in a few minutes\n"
+            live_message += "  • Upgrade for instant notifications\n"
+            live_message += "  • Invite friends for bonus points\n"
         
         # Calculate time until reset
         now_utc = datetime.now(timezone.utc)
@@ -497,14 +538,25 @@ async def referrals_handler(session: Session, payload: dict):
         referral_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
         
         referral_text += f"👥 *Total Referrals:* {referral_count}\n"
-        referral_text += f"💰 *Points Earned:* {referral_count * 10}\n\n"
+        referral_text += f"💰 *Points Earned:* {referral_count * 5}\n\n"
+        
+        # Progress to free premium
+        if referral_count < 30:
+            progress = min(referral_count, 30)
+            progress_bar = "█" * (progress // 3) + "░" * (10 - progress // 3)
+            referral_text += f"🎯 *Progress to Free Premium:*\n"
+            referral_text += f"   [{progress_bar}] {referral_count}/30\n\n"
+        else:
+            referral_text += "🏆 *Achievement Unlocked!*\n"
+            referral_text += "   You've earned free premium! 🎉\n\n"
         
         referral_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
         
         referral_text += "💡 *How it works:*\n\n"
         referral_text += "1️⃣ Share your link\n"
         referral_text += "2️⃣ Friend joins via link\n"
-        referral_text += "3️⃣ You both get +10 points!\n\n"
+        referral_text += "3️⃣ You both get +5 points!\n"
+        referral_text += "🎁 30 referrals = Free 7-day Premium!\n\n"
         
         bot_username = os.environ.get('BOT_USERNAME', 'InstaLiveProBot')
         referral_link = f"https://t.me/{bot_username}?start={user.id}"
@@ -568,9 +620,10 @@ async def help_handler(session: Session, payload: dict):
         help_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
         
         help_text += "💎 *Points System:*\n"
-        help_text += "  • Start with 10 free points\n"
+        help_text += "  • Start with 3 free points\n"
         help_text += "  • Resets daily at midnight UTC\n"
-        help_text += "  • Earn more via referrals\n\n"
+        help_text += "  • Earn +5 points per referral\n"
+        help_text += "  • 1 point = 1 live check\n\n"
         
         help_text += "❓ *Need more help?*\n"
         help_text += "Contact support in our group!"
@@ -605,7 +658,7 @@ async def back_handler(session: Session, payload: dict):
 
         user = session.query(TelegramUser).filter_by(id=sender_id).first()
         lang = user.language if user else 'en'
-        await send_main_menu(sender_id, username=username, lang=lang)
+        await send_main_menu(sender_id, username=username, lang=lang, session=session)
 
     except Exception as e:
         logger.error(f"Error in back_handler: {e}", exc_info=True)
