@@ -445,3 +445,380 @@ async def check_live_handler(session: Session, payload: dict):
         logger.error(f"Error in check_live_handler for user {sender_id}: {e}", exc_info=True)
         session.rollback()
         raise
+
+
+async def referrals_handler(session: Session, payload: dict):
+    """Displays referral information and link."""
+    try:
+        callback_query = payload.get('callback_query', {})
+        from_user = callback_query.get('from', {})
+        sender_id = from_user.get('id')
+        message = callback_query.get('message', {})
+        chat_id = message.get('chat', {}).get('id')
+        message_id = message.get('message_id')
+
+        if not sender_id:
+            logger.error("Could not determine sender_id from payload.")
+            return
+
+        helper = TelegramHelper()
+
+        user = session.query(TelegramUser).filter_by(id=sender_id).first()
+        if not user:
+            await send_user_feedback(sender_id, "❌ Please use /start first to register.")
+            return
+
+        # Count referrals
+        referral_count = session.query(TelegramUser).filter_by(referred_by_id=user.id).count()
+        
+        referral_text = "🎁 *REFERRALS*\n"
+        referral_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
+        
+        referral_text += f"👥 *Total Referrals:* {referral_count}\n"
+        referral_text += f"💰 *Points Earned:* {referral_count * 10}\n\n"
+        
+        referral_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
+        
+        referral_text += "💡 *How it works:*\n\n"
+        referral_text += "1️⃣ Share your link\n"
+        referral_text += "2️⃣ Friend joins via link\n"
+        referral_text += "3️⃣ You both get +10 points!\n\n"
+        
+        bot_username = os.environ.get('BOT_USERNAME', 'InstaLiveProBot')
+        referral_link = f"https://t.me/{bot_username}?start={user.id}"
+        
+        referral_text += "🔗 *Your Referral Link:*\n"
+        referral_text += f"`{referral_link}`\n\n"
+        referral_text += "_(Tap to copy)_"
+        
+        buttons = {
+            "inline_keyboard": [
+                [
+                    {"text": "📤 Share Link", "url": f"https://t.me/share/url?url={referral_link}&text=Join me on IGLiveZBot!"}
+                ],
+                [
+                    {"text": "⬅️ Back to Menu", "callback_data": "back"}
+                ]
+            ]
+        }
+        await helper.edit_message_text(chat_id, message_id, referral_text, parse_mode="Markdown", reply_markup=buttons)
+
+    except Exception as e:
+        logger.error(f"Error in referrals_handler: {e}", exc_info=True)
+        raise
+
+
+async def help_handler(session: Session, payload: dict):
+    """Displays help information."""
+    try:
+        callback_query = payload.get('callback_query', {})
+        from_user = callback_query.get('from', {})
+        sender_id = from_user.get('id')
+        message = callback_query.get('message', {})
+        chat_id = message.get('chat', {}).get('id')
+        message_id = message.get('message_id')
+
+        if not sender_id:
+            return
+
+        helper = TelegramHelper()
+        user = session.query(TelegramUser).filter_by(id=sender_id).first()
+        lang = user.language if user else 'en'
+
+        help_text = "ℹ️ *HELP & INFO*\n"
+        help_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
+        
+        help_text += "🤖 *What is IGLiveZBot?*\n"
+        help_text += "Track Instagram live streams in real-time!\n\n"
+        
+        help_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
+        
+        help_text += "📋 *How to use:*\n\n"
+        help_text += "🔴 *Check Live* - See who's streaming\n"
+        help_text += "   Costs 1 point per check\n\n"
+        
+        help_text += "👤 *My Account* - View your stats\n"
+        help_text += "   Check points & subscription\n\n"
+        
+        help_text += "🎁 *Referrals* - Earn bonus points\n"
+        help_text += "   +10 points per friend\n\n"
+        
+        help_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
+        
+        help_text += "💎 *Points System:*\n"
+        help_text += "  • Start with 10 free points\n"
+        help_text += "  • Resets daily at midnight UTC\n"
+        help_text += "  • Earn more via referrals\n\n"
+        
+        help_text += "❓ *Need more help?*\n"
+        help_text += "Contact support in our group!"
+        
+        buttons = {
+            "inline_keyboard": [
+                [
+                    {"text": "💬 Join Support Group", "url": REQUIRED_GROUP_URL}
+                ],
+                [
+                    {"text": "⬅️ Back to Menu", "callback_data": "back"}
+                ]
+            ]
+        }
+        await helper.edit_message_text(chat_id, message_id, help_text, parse_mode="Markdown", reply_markup=buttons)
+
+    except Exception as e:
+        logger.error(f"Error in help_handler: {e}", exc_info=True)
+        raise
+
+
+async def back_handler(session: Session, payload: dict):
+    """Returns user to main menu."""
+    try:
+        callback_query = payload.get('callback_query', {})
+        from_user = callback_query.get('from', {})
+        sender_id = from_user.get('id')
+        username = from_user.get('first_name', 'there')
+
+        if not sender_id:
+            return
+
+        user = session.query(TelegramUser).filter_by(id=sender_id).first()
+        lang = user.language if user else 'en'
+        await send_main_menu(sender_id, username=username, lang=lang)
+
+    except Exception as e:
+        logger.error(f"Error in back_handler: {e}", exc_info=True)
+        raise
+
+
+async def settings_handler(session: Session, payload: dict):
+    """Displays settings menu."""
+    try:
+        callback_query = payload.get('callback_query', {})
+        from_user = callback_query.get('from', {})
+        sender_id = from_user.get('id')
+        message = callback_query.get('message', {})
+        chat_id = message.get('chat', {}).get('id')
+        message_id = message.get('message_id')
+
+        if not sender_id:
+            return
+
+        helper = TelegramHelper()
+        user = session.query(TelegramUser).filter_by(id=sender_id).first()
+        if not user:
+            await send_user_feedback(sender_id, "❌ Please use /start first to register.")
+            return
+
+        settings_text = "⚙️ *SETTINGS*\n"
+        settings_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
+        settings_text += f"🌍 *Current Language:* {LANGUAGE_NAMES.get(user.language, 'English')}\n\n"
+        settings_text += "Choose an option below:"
+
+        buttons = {
+            "inline_keyboard": [
+                [
+                    {"text": "🌍 Change Language", "callback_data": "lang:select"}
+                ],
+                [
+                    {"text": "⬅️ Back to Menu", "callback_data": "back"}
+                ]
+            ]
+        }
+        await helper.edit_message_text(chat_id, message_id, settings_text, parse_mode="Markdown", reply_markup=buttons)
+
+    except Exception as e:
+        logger.error(f"Error in settings_handler: {e}", exc_info=True)
+        raise
+
+
+async def set_initial_language_handler(session: Session, payload: dict):
+    """Handles initial language selection for new users."""
+    try:
+        callback_query = payload.get('callback_query', {})
+        from_user = callback_query.get('from', {})
+        sender_id = from_user.get('id')
+        callback_data = callback_query.get('data', '')
+        username = from_user.get('first_name', 'there')
+
+        if not sender_id:
+            return
+
+        # Extract language code from callback_data (format: "setlang:en")
+        lang_code = callback_data.split(':')[1] if ':' in callback_data else 'en'
+
+        user = session.query(TelegramUser).filter_by(id=sender_id).first()
+        if user:
+            user.language = lang_code
+            session.commit()
+            logger.info(f"User {user.id} set initial language to {lang_code}")
+
+        # Send main menu with selected language
+        prefix_message = get_text('language_set', lang_code) + "\n\n"
+        await send_main_menu(sender_id, prefix_message, username, lang_code)
+
+    except Exception as e:
+        logger.error(f"Error in set_initial_language_handler: {e}", exc_info=True)
+        raise
+
+
+async def change_language_handler(session: Session, payload: dict):
+    """Handles language change from settings."""
+    try:
+        callback_query = payload.get('callback_query', {})
+        from_user = callback_query.get('from', {})
+        sender_id = from_user.get('id')
+        callback_data = callback_query.get('data', '')
+        message = callback_query.get('message', {})
+        chat_id = message.get('chat', {}).get('id')
+        message_id = message.get('message_id')
+
+        if not sender_id:
+            return
+
+        helper = TelegramHelper()
+        user = session.query(TelegramUser).filter_by(id=sender_id).first()
+        if not user:
+            await send_user_feedback(sender_id, "❌ Please use /start first to register.")
+            return
+
+        # If callback is "lang:select", show language selection menu
+        if callback_data == "lang:select":
+            lang_text = "🌍 *SELECT LANGUAGE*\n"
+            lang_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
+            lang_text += "Choose your preferred language:"
+
+            # Create language selection buttons (2 per row)
+            lang_buttons = []
+            languages = list(LANGUAGE_NAMES.items())
+            for i in range(0, len(languages), 2):
+                row = []
+                for j in range(2):
+                    if i + j < len(languages):
+                        lang_code, lang_name = languages[i + j]
+                        display_name = f"✓ {lang_name}" if lang_code == user.language else lang_name
+                        row.append({"text": display_name, "callback_data": f"lang:{lang_code}"})
+                lang_buttons.append(row)
+            
+            lang_buttons.append([{"text": "⬅️ Back", "callback_data": "settings"}])
+            buttons = {"inline_keyboard": lang_buttons}
+            
+            await helper.edit_message_text(chat_id, message_id, lang_text, parse_mode="Markdown", reply_markup=buttons)
+        else:
+            # Extract language code and update
+            lang_code = callback_data.split(':')[1] if ':' in callback_data else user.language
+            user.language = lang_code
+            session.commit()
+            logger.info(f"User {user.id} changed language to {lang_code}")
+
+            # Show confirmation and return to settings
+            confirm_text = get_text('language_changed', lang_code) + "\n\n"
+            confirm_text += "⚙️ *SETTINGS*\n"
+            confirm_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
+            confirm_text += f"🌍 *Current Language:* {LANGUAGE_NAMES.get(lang_code, 'English')}\n\n"
+            confirm_text += "Choose an option below:"
+
+            buttons = {
+                "inline_keyboard": [
+                    [
+                        {"text": get_text('change_language', lang_code), "callback_data": "lang:select"}
+                    ],
+                    [
+                        {"text": get_text('back', lang_code), "callback_data": "back"}
+                    ]
+                ]
+            }
+            await helper.edit_message_text(chat_id, message_id, confirm_text, parse_mode="Markdown", reply_markup=buttons)
+
+    except Exception as e:
+        logger.error(f"Error in change_language_handler: {e}", exc_info=True)
+        raise
+
+
+async def join_request_handler(session: Session, payload: dict):
+    """Handles chat join requests."""
+    try:
+        join_request = payload.get('chat_join_request', {})
+        chat = join_request.get('chat', {})
+        user = join_request.get('from', {})
+        
+        chat_id = chat.get('id')
+        user_id = user.get('id')
+
+        if not chat_id or not user_id:
+            logger.error("Could not determine chat_id or user_id from join request payload.")
+            return
+
+        helper = TelegramHelper()
+        await helper.approve_chat_join_request(chat_id, user_id)
+        logger.info(f"Auto-approved join request for user {user_id} in chat {chat_id}")
+
+    except Exception as e:
+        logger.error(f"Error in join_request_handler: {e}", exc_info=True)
+        raise
+
+
+async def broadcast_message_handler(session: Session, payload: dict):
+    """Handles broadcasting messages to all users."""
+    try:
+        message_text = payload.get('message', '')
+        if not message_text:
+            logger.warning("No message text provided for broadcast.")
+            return
+
+        # Get all users
+        users = session.query(TelegramUser).all()
+        helper = TelegramHelper()
+        
+        success_count = 0
+        fail_count = 0
+        
+        for user in users:
+            try:
+                await helper.send_message(user.id, message_text, parse_mode="Markdown")
+                success_count += 1
+                await asyncio.sleep(0.05)  # Rate limiting
+            except Exception as e:
+                logger.error(f"Failed to send broadcast to user {user.id}: {e}")
+                fail_count += 1
+        
+        logger.info(f"Broadcast completed. Success: {success_count}, Failed: {fail_count}")
+
+    except Exception as e:
+        logger.error(f"Error in broadcast_message_handler: {e}", exc_info=True)
+        raise
+
+
+async def init_handler(session: Session, payload: dict):
+    """Handles /init command (placeholder for future use)."""
+    try:
+        message = payload.get('message', {})
+        from_user = message.get('from', {})
+        sender_id = from_user.get('id')
+        
+        if not sender_id:
+            return
+
+        await send_user_feedback(sender_id, "ℹ️ This command is reserved for future features.")
+        logger.info(f"User {sender_id} used /init command")
+
+    except Exception as e:
+        logger.error(f"Error in init_handler: {e}", exc_info=True)
+        raise
+
+
+async def activate_handler(session: Session, payload: dict):
+    """Handles /activate command (placeholder for future use)."""
+    try:
+        message = payload.get('message', {})
+        from_user = message.get('from', {})
+        sender_id = from_user.get('id')
+        
+        if not sender_id:
+            return
+
+        await send_user_feedback(sender_id, "ℹ️ This command is reserved for future features.")
+        logger.info(f"User {sender_id} used /activate command")
+
+    except Exception as e:
+        logger.error(f"Error in activate_handler: {e}", exc_info=True)
+        raise

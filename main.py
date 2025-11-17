@@ -101,6 +101,7 @@ async def process_job(job, session_factory):
                 else:
                     logger.info(f"No handler for callback_data: '{callback_data}'")
             elif 'pre_checkout_query' in payload:
+                logger.info(f"PRE_CHECKOUT_QUERY detected in payload: {payload.get('pre_checkout_query', {}).get('id')}")
                 await pre_checkout_handler(session, payload)
             elif 'chat_join_request' in payload:
                 await join_request_handler(session, payload)
