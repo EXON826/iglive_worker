@@ -76,16 +76,9 @@ def get_relative_time(dt: datetime) -> str:
 
 def create_stream_card(username: str, link: str, total_lives: int, last_live: datetime, index: int) -> str:
     """Create card-style formatting for live stream."""
-    uname = '@' + (username or '').lstrip('@')
-    uname_md = md_escape(uname)
-    rel = get_relative_time(last_live)
-    lives = total_lives or 0
-
     card = (
-        f"{index}. {uname_md}\n"
         f"┌────────────────────────────────┐\n"
-        f"│ ▶️ {md_link('Watch now', link)}\n"
-        f"│ 📊 Lives: {lives}   ⏱ {md_escape(rel)}\n"
+        f"│ {index}. {md_escape(link)}\n"
         f"└────────────────────────────────┘"
     )
     return card
