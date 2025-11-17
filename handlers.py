@@ -429,6 +429,9 @@ async def check_live_handler(session: Session, payload: dict):
         message = callback_query.get('message', {})
         chat_id = message.get('chat', {}).get('id')
         message_id = message.get('message_id')
+        
+        # Define now_utc at the beginning to avoid UnboundLocalError
+        now_utc = datetime.now(timezone.utc)
 
         if not sender_id:
             logger.error("Could not determine sender_id from payload.")
