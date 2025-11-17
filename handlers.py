@@ -56,12 +56,10 @@ def get_relative_time(dt: datetime) -> str:
 def create_stream_card(username: str, link: str, total_lives: int, last_live: datetime, index: int) -> str:
     """Create card-style formatting for live stream."""
     relative_time = get_relative_time(last_live)
-    card = f"┏━━━━━━━━━━━━━━━━━━━┓\n"
-    card += f"┃ {index}. 🔴 *[{username}]({link})*\n"
+    card = f"{index}. 🔴 *[{username}]({link})*\n"
     if total_lives and total_lives > 0:
-        card += f"┃ 📊 Lives: {total_lives}\n"
-    card += f"┃ ⏰ {relative_time}\n"
-    card += f"┗━━━━━━━━━━━━━━━━━━━┛"
+        card += f"   📊 Lives: {total_lives}\n"
+    card += f"   ⏰ {relative_time}"
     return card
 
 
@@ -108,9 +106,9 @@ async def send_main_menu(user_id: int, prefix_message: str = "", username: str =
                         is_premium = False
                     
                     if is_premium:
-                        menu_text += "╔═════════════╗\n"
-                        menu_text += "  💎 PREMIUM USER  \n"
-                        menu_text += "╚═════════════╝\n"
+                        menu_text += "━━━━━━━━━━━━━━━━━\n"
+                        menu_text += "💎 *PREMIUM USER*\n"
+                        menu_text += "━━━━━━━━━━━━━━━━━\n"
                     else:
                         points_bar = get_animated_progress_bar(user.points, 3, 10)
                         percentage = int((user.points / 3) * 100)
@@ -339,9 +337,9 @@ async def my_account_handler(session: Session, payload: dict):
         
         if is_unlimited:
             days_left = (sub_end - now_utc).days
-            account_text += "╔═════════════╗\n"
-            account_text += "  💎 PREMIUM USER  \n"
-            account_text += "╚═════════════╝\n\n"
+            account_text += "━━━━━━━━━━━━━\n"
+            account_text += "💎 *PREMIUM USER*\n"
+            account_text += "━━━━━━━━━━━━━\n\n"
             account_text += f"✅ Unlimited Checks\n"
             account_text += f"📅 Valid Until: {user.subscription_end.strftime('%b %d, %Y')}\n"
             account_text += f"⏳ Days Left: {days_left} days\n"
