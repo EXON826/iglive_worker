@@ -55,7 +55,12 @@ def get_relative_time(dt: datetime) -> str:
 
 def create_stream_card(username: str, link: str, total_lives: int, last_live: datetime, index: int) -> str:
     """Create card-style formatting for live stream."""
-    return f"┌{'─' * 25}┐\n│ {index}. 🔴 {link}\n└{'─' * 25}┘"
+    relative_time = get_relative_time(last_live)
+    card = f"{index}. 🔴 *[{username}]({link})*\n"
+    if total_lives and total_lives > 0:
+        card += f"   📊 Lives: {total_lives}\n"
+    card += f"   ⏰ {relative_time}"
+    return card
 
 
 def is_new_day_for_user(user: TelegramUser) -> bool:
@@ -332,9 +337,9 @@ async def my_account_handler(session: Session, payload: dict):
         
         if is_unlimited:
             days_left = (sub_end - now_utc).days
-            account_text += "━━━━━━━━━━━━━\n"
-            account_text += "💎 *PREMIUM USER*\n"
-            account_text += "━━━━━━━━━━━━━\n\n"
+            account_text += "╔═════════════╗\n"
+            account_text += "  💎 PREMIUM USER  \n"
+            account_text += "╚═════════════╝\n\n"
             account_text += f"✅ Unlimited Checks\n"
             account_text += f"📅 Valid Until: {user.subscription_end.strftime('%b %d, %Y')}\n"
             account_text += f"⏳ Days Left: {days_left} days\n"
