@@ -25,6 +25,8 @@ from handlers import (
     settings_handler,
     set_initial_language_handler,
     change_language_handler,
+    toggle_notifications_handler,
+    clear_notifications_handler,
 )
 from payment_handlers import (
     buy_handler,
@@ -99,6 +101,10 @@ async def process_job(job, session_factory):
                     await set_initial_language_handler(session, payload)
                 elif callback_data.startswith('lang:'):
                     await change_language_handler(session, payload)
+                elif callback_data == 'toggle_notifications':
+                    await toggle_notifications_handler(session, payload)
+                elif callback_data == 'clear_notifications':
+                    await clear_notifications_handler(session, payload)
                 else:
                     logger.info(f"No handler for callback_data: '{callback_data}'")
             elif 'pre_checkout_query' in payload:
@@ -141,13 +147,12 @@ async def worker_main_loop(session_factory, run_once=False):
             # --- 1. Fetch and Lock a Job ---
             select_query = text("""
                 SELECT * FROM jobs
-                WHERE status = 'pending' 
-                  AND bot_token = :bot_token
+                WHERE status = 'pending'
                 ORDER BY created_at
                 LIMIT 1
                 FOR UPDATE SKIP LOCKED
             """)
-            result = session.execute(select_query, {'bot_token': os.environ.get('BOT_TOKEN')}).fetchone()
+            result = session.execute(select_query).fetchone()
 
             if result:
                 job_to_process = dict(result._mapping)

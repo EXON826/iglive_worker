@@ -821,17 +821,40 @@ async def settings_handler(session: Session, payload: dict):
             await send_user_feedback(sender_id, "❌ Please use /start first to register.")
             return
 
+        # Check if user is premium using star_payments
+        premium_check = session.execute(text("""
+            SELECT COUNT(*) FROM star_payments 
+            WHERE user_id = :user_id 
+            AND package_type LIKE 'premium_%' 
+            AND status = 'completed'
+            AND completed_at > NOW() - INTERVAL '30 days'
+        """), {'user_id': user.id}).scalar()
+        is_premium = premium_check > 0
+        
         settings_text = "⚙️ *SETTINGS*\n"
         settings_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
-        settings_text += f"🌍 *Current Language:* {LANGUAGE_NAMES.get(user.language, 'English')}\n\n"
-        settings_text += "Choose an option below:"
+        settings_text += f"🌍 *Language:* {LANGUAGE_NAMES.get(user.language, 'English')}\n"
+        
+        if is_premium:
+            notifications_status = "🔔 ON" if user.notifications_enabled else "🔕 OFF"
+            settings_text += f"🔔 *Live Notifications:* {notifications_status}\n"
+        
+        settings_text += "\nChoose an option below:"
 
-        buttons = {
-            "inline_keyboard": [
-                [{"text": "🌍 Change Language", "callback_data": "lang:select"}],
-                [{"text": "⬅️ Back to Menu", "callback_data": "back"}]
-            ]
-        }
+        button_rows = [
+            [{"text": "🌍 Change Language", "callback_data": "lang:select"}]
+        ]
+        
+        if is_premium:
+            toggle_text = "🔕 Turn OFF Notifications" if user.notifications_enabled else "🔔 Turn ON Notifications"
+            button_rows.append([
+                {"text": toggle_text, "callback_data": "toggle_notifications"},
+                {"text": "🗑️ Clear All", "callback_data": "clear_notifications"}
+            ])
+        
+        button_rows.append([{"text": "⬅️ Back to Menu", "callback_data": "back"}])
+        
+        buttons = {"inline_keyboard": button_rows}
         try:
             await helper.edit_message_text(chat_id, message_id, settings_text, parse_mode="Markdown", reply_markup=buttons)
         except Exception as e:
@@ -871,6 +894,101 @@ async def set_initial_language_handler(session: Session, payload: dict):
 
     except Exception as e:
         logger.error(f"Error in set_initial_language_handler: {e}", exc_info=True)
+        raise
+
+
+async def clear_notifications_handler(session: Session, payload: dict):
+    """Clears all notification messages for the user."""
+    try:
+        callback_query = payload.get('callback_query', {})
+        from_user = callback_query.get('from', {})
+        sender_id = from_user.get('id')
+        message = callback_query.get('message', {})
+        chat_id = message.get('chat', {}).get('id')
+        message_id = message.get('message_id')
+
+        if not sender_id:
+            return
+
+        helper = TelegramHelper()
+        
+        # Show loading message
+        try:
+            await helper.edit_message_text(chat_id, message_id, "🗑️ *Clearing notifications...*\n\nPlease wait.", parse_mode="Markdown")
+        except:
+            pass
+        
+        # Clear recent messages (last 100 messages)
+        cleared_count = 0
+        for i in range(1, 101):
+            try:
+                await helper.delete_message(chat_id, message_id - i)
+                cleared_count += 1
+            except:
+                pass  # Message doesn't exist or can't be deleted
+        
+        # Show result and return to settings
+        result_text = f"✅ *Cleared {cleared_count} messages!*\n\n"
+        result_text += "Returning to settings..."
+        
+        try:
+            await helper.edit_message_text(chat_id, message_id, result_text, parse_mode="Markdown")
+            await asyncio.sleep(2)  # Show result for 2 seconds
+        except:
+            pass
+        
+        # Return to settings menu
+        await settings_handler(session, payload)
+        
+        logger.info(f"User {sender_id} cleared {cleared_count} notification messages")
+
+    except Exception as e:
+        logger.error(f"Error in clear_notifications_handler: {e}", exc_info=True)
+        try:
+            await settings_handler(session, payload)
+        except:
+            pass
+
+
+async def toggle_notifications_handler(session: Session, payload: dict):
+    """Handles notification toggle for premium users."""
+    try:
+        callback_query = payload.get('callback_query', {})
+        from_user = callback_query.get('from', {})
+        sender_id = from_user.get('id')
+        message = callback_query.get('message', {})
+        chat_id = message.get('chat', {}).get('id')
+        message_id = message.get('message_id')
+
+        if not sender_id:
+            return
+
+        helper = TelegramHelper()
+        user = session.query(TelegramUser).filter_by(id=sender_id).first()
+        if not user:
+            await send_user_feedback(sender_id, "❌ Please use /start first to register.")
+            return
+
+        # Toggle notifications
+        user.notifications_enabled = not user.notifications_enabled
+        session.commit()
+        
+        status = "enabled" if user.notifications_enabled else "disabled"
+        icon = "🔔" if user.notifications_enabled else "🔕"
+        
+        confirm_text = f"{icon} *Notifications {status.title()}!*\n\n"
+        if user.notifications_enabled:
+            confirm_text += "You'll now receive live stream alerts.\n\n"
+        else:
+            confirm_text += "You won't receive live stream alerts.\n\n"
+        
+        # Show updated settings menu
+        await settings_handler(session, payload)
+        
+        logger.info(f"User {user.id} {status} notifications")
+
+    except Exception as e:
+        logger.error(f"Error in toggle_notifications_handler: {e}", exc_info=True)
         raise
 
 
@@ -1054,11 +1172,15 @@ async def notify_live_handler(session: Session, payload: dict):
         
         now_utc = datetime.now(timezone.utc)
         query = text("""
-            SELECT id, first_name, language 
-            FROM telegram_users 
-            WHERE subscription_end > :now
+            SELECT DISTINCT u.id, u.first_name, u.language 
+            FROM telegram_users u
+            JOIN star_payments sp ON u.id = sp.user_id
+            WHERE sp.package_type LIKE 'premium_%'
+            AND sp.status = 'completed'
+            AND sp.completed_at > NOW() - INTERVAL '30 days'
+            AND u.notifications_enabled = TRUE
         """)
-        premium_users = session.execute(query, {'now': now_utc}).fetchall()
+        premium_users = session.execute(query).fetchall()
         
         if not premium_users:
             logger.info(f"No premium users to notify for {username}")

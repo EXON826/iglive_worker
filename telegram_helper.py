@@ -36,6 +36,21 @@ class TelegramHelper:
                 logger.error(f"Network error sending message to {chat_id}: {e}")
                 return None
 
+    async def delete_message(self, chat_id, message_id):
+        """Deletes a message."""
+        payload = {
+            'chat_id': chat_id,
+            'message_id': message_id
+        }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                response = await client.post(f"{self.base_url}/deleteMessage", json=payload)
+                response.raise_for_status()
+                return True
+            except:
+                return False
+
     async def edit_message_text(self, chat_id, message_id, text, parse_mode=None, reply_markup=None):
         """Edits an existing message text."""
         payload = {
