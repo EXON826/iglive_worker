@@ -849,10 +849,7 @@ async def settings_handler(session: Session, payload: dict):
         if is_premium:
             notifications_enabled = getattr(user, 'notifications_enabled', True)
             toggle_text = "🔕 Turn OFF Notifications" if notifications_enabled else "🔔 Turn ON Notifications"
-            button_rows.append([
-                {"text": toggle_text, "callback_data": "toggle_notifications"},
-                {"text": "🗑️ Clear All", "callback_data": "clear_notifications"}
-            ])
+            button_rows.append([{"text": toggle_text, "callback_data": "toggle_notifications"}])
         
         button_rows.append([{"text": "⬅️ Back to Menu", "callback_data": "back"}])
         
@@ -1200,7 +1197,15 @@ async def notify_live_handler(session: Session, payload: dict):
                 notification += f"*{username}* just started streaming!\n\n"
                 notification += f"[Watch Now]({link})"
                 
-                await helper.send_message(user_id, notification, parse_mode="Markdown")
+                # Add notification control buttons
+                buttons = {
+                    "inline_keyboard": [[
+                        {"text": "🔕 Turn OFF", "callback_data": "toggle_notifications"},
+                        {"text": "🗑️ Clear All", "callback_data": "clear_notifications"}
+                    ]]
+                }
+                
+                await helper.send_message(user_id, notification, parse_mode="Markdown", reply_markup=buttons)
                 success_count += 1
                 await asyncio.sleep(0.05)
             except Exception as e:
