@@ -55,7 +55,7 @@ def get_relative_time(dt: datetime) -> str:
 
 def create_stream_card(username: str, link: str, total_lives: int, last_live: datetime, index: int) -> str:
     """Create card-style formatting for live stream."""
-    return f"{index}) 🔴 {link}"
+    return f"┌{'─' * 25}┐\n│ {index}. 🔴 {link}\n└{'─' * 25}┘"
 
 
 def is_new_day_for_user(user: TelegramUser) -> bool:
@@ -533,7 +533,7 @@ async def check_live_handler(session: Session, payload: dict):
         page_users = live_users[start_idx:end_idx]
         
         if live_users:
-            live_message = "🔴 LIVE NOW\n"
+            live_message = "🔴 *LIVE NOW*\n"
             live_message += "━━━━━━━━━━━━━━━━━━━━\n\n"
             
             if total_pages > 1:
@@ -550,7 +550,7 @@ async def check_live_handler(session: Session, payload: dict):
                 live_message += create_stream_card(username, link, total_lives, last_live, start_idx + idx)
                 live_message += "\n\n"
         else:
-            live_message = "🔴 LIVE NOW\n"
+            live_message = "🔴 *LIVE NOW*\n"
             live_message += "━━━━━━━━━━━━━━━━━━━━\n\n"
             live_message += "     🌙\n"
             live_message += "   ✨ 💤 ✨\n\n"
