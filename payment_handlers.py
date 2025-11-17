@@ -5,10 +5,12 @@ import os
 import logging
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from models import TelegramUser, StarPayment
 from telegram_helper import TelegramHelper
 from rate_limiter import rate_limiter
+from config import PREMIUM_VALIDITY_DAYS
 
 logger = logging.getLogger(__name__)
 
@@ -39,13 +41,18 @@ async def buy_handler(session: Session, payload: dict):
 
         helper = TelegramHelper()
         
-        # Check if user is premium
+        # Check if user is premium using star_payments table
         user = session.query(TelegramUser).filter_by(id=sender_id).first()
         is_premium = False
-        if user and user.subscription_end:
-            now_utc = datetime.now(timezone.utc)
-            sub_end = user.subscription_end if user.subscription_end.tzinfo else user.subscription_end.replace(tzinfo=timezone.utc)
-            is_premium = sub_end > now_utc
+        if user:
+            premium_check = session.execute(text("""
+                SELECT COUNT(*) FROM star_payments 
+                WHERE user_id = :user_id 
+                AND package_type LIKE 'premium_%' 
+                AND status = 'completed'
+                AND completed_at > NOW() - INTERVAL ':days days'
+            """), {'user_id': user.id, 'days': PREMIUM_VALIDITY_DAYS}).scalar()
+            is_premium = premium_check > 0
         
         if is_premium:
             buy_text = "🔄 *RENEW PREMIUM*\n"

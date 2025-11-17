@@ -13,17 +13,14 @@ from telegram_helper import TelegramHelper
 from translations import get_text, detect_language, LANGUAGE_NAMES
 from smart_notifications import send_referral_milestone_notification
 from rate_limiter import rate_limiter
+from config import (
+    BOT_USERNAME, BOT_TOKEN, BOT_API_ID, BOT_API_HASH,
+    REQUIRED_GROUP_URL, REQUIRED_GROUP_ID, REQUIRE_GROUP_MEMBERSHIP,
+    LIVE_STREAMS_PER_PAGE, PREMIUM_VALIDITY_DAYS,
+    DEFAULT_DAILY_POINTS, REFERRAL_BONUS_POINTS, FREE_PREMIUM_REFERRAL_THRESHOLD
+)
 
 logger = logging.getLogger(__name__)
-
-BOT_TOKEN = os.environ.get('BOT_TOKEN')
-BOT_API_ID = os.environ.get('BOT_API_ID')
-BOT_API_HASH = os.environ.get('BOT_API_HASH')
-
-REQUIRED_GROUP_URL = "https://t.me/+FBDgBcLD1C5jN2Jk"
-REQUIRED_GROUP_ID = -1002891494486
-
-REQUIRE_GROUP_MEMBERSHIP = False
 
 
 def md_escape(text: str) -> str:
@@ -120,12 +117,15 @@ async def send_main_menu(user_id: int, prefix_message: str = "", username: str =
             try:
                 user = session.query(TelegramUser).filter_by(id=user_id).first()
                 if user:
-                    now_utc = datetime.now(timezone.utc)
-                    if user.subscription_end:
-                        sub_end = user.subscription_end if user.subscription_end.tzinfo else user.subscription_end.replace(tzinfo=timezone.utc)
-                        is_premium = sub_end > now_utc
-                    else:
-                        is_premium = False
+                    # Check premium status using star_payments table
+                    premium_check = session.execute(text("""
+                        SELECT COUNT(*) FROM star_payments 
+                        WHERE user_id = :user_id 
+                        AND package_type LIKE 'premium_%' 
+                        AND status = 'completed'
+                        AND completed_at > NOW() - INTERVAL '30 days'
+                    """), {'user_id': user.id}).scalar()
+                    is_premium = premium_check > 0
                     
                     if is_premium:
                         menu_text += "╔═════════════╗\n"
@@ -155,10 +155,16 @@ async def send_main_menu(user_id: int, prefix_message: str = "", username: str =
         if session:
             try:
                 user = session.query(TelegramUser).filter_by(id=user_id).first()
-                if user and user.subscription_end:
-                    now_utc = datetime.now(timezone.utc)
-                    sub_end = user.subscription_end if user.subscription_end.tzinfo else user.subscription_end.replace(tzinfo=timezone.utc)
-                    is_premium = sub_end > now_utc
+                if user:
+                    # Check premium status using star_payments table
+                    premium_check = session.execute(text("""
+                        SELECT COUNT(*) FROM star_payments 
+                        WHERE user_id = :user_id 
+                        AND package_type LIKE 'premium_%' 
+                        AND status = 'completed'
+                        AND completed_at > NOW() - INTERVAL '30 days'
+                    """), {'user_id': user.id}).scalar()
+                    is_premium = premium_check > 0
             except:
                 pass
 
@@ -241,7 +247,7 @@ async def start_handler(session: Session, payload: dict):
                 id=sender_id,
                 username=from_user.get('username'),
                 first_name=from_user.get('first_name'),
-                points=3,
+                points=DEFAULT_DAILY_POINTS,
                 last_seen=datetime.now(timezone.utc),
                 referred_by_id=referred_by_id,
                 language=user_lang
@@ -254,7 +260,7 @@ async def start_handler(session: Session, payload: dict):
             if referred_by_id:
                 referrer = session.query(TelegramUser).filter_by(id=referred_by_id).first()
                 if referrer:
-                    referrer.points += 5
+                    referrer.points += REFERRAL_BONUS_POINTS
                     session.commit()
                     
                     referrer_msg = f"🎊 *Referral Success!*\n\n"
@@ -290,7 +296,7 @@ async def start_handler(session: Session, payload: dict):
             return
 
         elif is_new_day_for_user(user):
-            user.points = 3
+            user.points = DEFAULT_DAILY_POINTS
             user.last_seen = datetime.now(timezone.utc)
             session.commit()
             
@@ -299,8 +305,8 @@ async def start_handler(session: Session, payload: dict):
             prefix_message += get_text('daily_bonus', user.language) + "\n\n"
             
             referral_count = session.query(TelegramUser).filter_by(referred_by_id=user.id).count()
-            if referral_count >= 25 and referral_count < 30:
-                prefix_message += f"🎯 *You're so close!* Only {30 - referral_count} more referrals for free Premium!\n\n"
+            if referral_count >= 25 and referral_count < FREE_PREMIUM_REFERRAL_THRESHOLD:
+                prefix_message += f"🎯 *You're so close!* Only {FREE_PREMIUM_REFERRAL_THRESHOLD - referral_count} more referrals for free Premium!\n\n"
             elif referral_count >= 10 and referral_count < 25:
                 prefix_message += "💡 *Tip:* Keep referring friends to unlock free Premium at 30 referrals!\n\n"
             
@@ -358,13 +364,12 @@ async def my_account_handler(session: Session, payload: dict):
         account_text += f"👥 *Referrals:* {referral_count} friends\n\n"
         
         if is_unlimited:
-            days_left = (sub_end - now_utc).days
             account_text += "╔═════════════╗\n"
             account_text += "  💎 PREMIUM USER  \n"
             account_text += "╚═════════════╝\n\n"
             account_text += f"✅ Unlimited Checks\n"
-            account_text += f"📅 Valid Until: {user.subscription_end.strftime('%b %d, %Y')}\n"
-            account_text += f"⏳ Days Left: {days_left} days\n"
+            account_text += f"📅 Premium Active\n"
+            account_text += f"⏳ Valid for 30 days from last payment\n"
         else:
             points_bar = get_animated_progress_bar(user.points, 3, 10)
             percentage = int((user.points / 3) * 100)
@@ -462,12 +467,25 @@ async def check_live_handler(session: Session, payload: dict):
             await send_user_feedback(sender_id, "❌ Please use /start first to register.")
             return
 
-        now_utc = datetime.now(timezone.utc)
-        if user.subscription_end:
-            sub_end = user.subscription_end if user.subscription_end.tzinfo else user.subscription_end.replace(tzinfo=timezone.utc)
-            is_unlimited = sub_end > now_utc
-        else:
-            is_unlimited = False
+        # Check premium status using star_payments table
+        premium_check = session.execute(text("""
+            SELECT COUNT(*) FROM star_payments 
+            WHERE user_id = :user_id 
+            AND package_type LIKE 'premium_%' 
+            AND status = 'completed'
+            AND completed_at > NOW() - INTERVAL '30 days'
+        """), {'user_id': user.id}).scalar()
+        is_unlimited = premium_check > 0
+            
+        # Apply rate limiting to actual live check logic
+        if not rate_limiter.is_allowed(sender_id, 'live_check_logic'):
+            reset_time = rate_limiter.get_reset_time(sender_id, 'live_check_logic')
+            error_msg = f"⚠️ *Too many requests!*\n\nPlease wait {reset_time} seconds before checking again."
+            try:
+                await helper.edit_message_text(chat_id, message_id, error_msg, parse_mode="Markdown")
+            except:
+                pass
+            return
             
         if not is_unlimited and page == 1:
             if user.points > 0:
@@ -554,14 +572,15 @@ async def check_live_handler(session: Session, payload: dict):
                 ]
             }
             
-            if not is_unlimited and page == 1:
+            # Only refund points if they were deducted (page 1 and not premium)
+            if not is_unlimited and page == 1 and user.points < 3:
                 user.points += 1
                 session.commit()
             
             await helper.edit_message_text(chat_id, message_id, error_msg, parse_mode="Markdown", reply_markup=error_buttons)
             return
         
-        PER_PAGE = 5
+        PER_PAGE = LIVE_STREAMS_PER_PAGE
         total_users = len(live_users)
         total_pages = max(1, (total_users + PER_PAGE - 1) // PER_PAGE)
         page = max(1, min(page, total_pages))
@@ -683,12 +702,12 @@ async def referrals_handler(session: Session, payload: dict):
         referral_text += f"👥 *Total Referrals:* {referral_count}\n"
         referral_text += f"💰 *Points Earned:* {referral_count * 5}\n\n"
         
-        if referral_count < 30:
-            progress_bar = get_animated_progress_bar(referral_count, 30, 15)
-            percentage = int((referral_count / 30) * 100)
+        if referral_count < FREE_PREMIUM_REFERRAL_THRESHOLD:
+            progress_bar = get_animated_progress_bar(referral_count, FREE_PREMIUM_REFERRAL_THRESHOLD, 15)
+            percentage = int((referral_count / FREE_PREMIUM_REFERRAL_THRESHOLD) * 100)
             referral_text += f"🎯 *Progress to Free Premium:*\n"
             referral_text += f"[{progress_bar}] {percentage}%\n"
-            referral_text += f"*{referral_count}/30* referrals\n\n"
+            referral_text += f"*{referral_count}/{FREE_PREMIUM_REFERRAL_THRESHOLD}* referrals\n\n"
         else:
             referral_text += "🏆 *Achievement Unlocked!*\n"
             referral_text += "   You've earned free premium! 🎉\n\n"
@@ -699,9 +718,9 @@ async def referrals_handler(session: Session, payload: dict):
         referral_text += "1️⃣ Share your link\n"
         referral_text += "2️⃣ Friend joins via link\n"
         referral_text += "3️⃣ You both get +5 points!\n"
-        referral_text += "🎁 30 referrals = Free 7-day Premium!\n\n"
+        referral_text += f"🎁 {FREE_PREMIUM_REFERRAL_THRESHOLD} referrals = Free 7-day Premium!\n\n"
         
-        bot_username = os.environ.get('BOT_USERNAME', 'InstaLiveProBot')
+        bot_username = BOT_USERNAME
         referral_link = f"https://t.me/{bot_username}?start={user.id}"
         
         referral_text += "🔗 *Your Referral Link:*\n"
@@ -922,6 +941,15 @@ async def clear_notifications_handler(session: Session, payload: dict):
             return
 
         helper = TelegramHelper()
+        
+        # Validate user has permission to clear messages in this chat
+        if chat_id != sender_id:
+            error_msg = "❌ You can only clear notifications in private chat."
+            try:
+                await helper.edit_message_text(chat_id, message_id, error_msg, parse_mode="Markdown")
+            except:
+                pass
+            return
         
         # Show loading message
         try:

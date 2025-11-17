@@ -1,18 +1,15 @@
 import time
 import logging
 from collections import defaultdict, deque
-from datetime import datetime, timezone
 from config import RATE_LIMITS
 
 logger = logging.getLogger(__name__)
 
 class RateLimiter:
-    """Simple in-memory rate limiter for user actions"""
+    """Fixed rate limiter with memory cleanup"""
     
     def __init__(self):
-        # Store user action timestamps
         self.user_actions = defaultdict(deque)
-        # Rate limits from configuration
         self.limits = RATE_LIMITS
         self.last_cleanup = time.time()
     
@@ -32,7 +29,6 @@ class RateLimiter:
         
         # Check if under limit
         if len(user_queue) >= max_requests:
-            logger.warning(f"Rate limit exceeded for user {user_id}, action: {action_type}")
             return False
         
         # Record this action
