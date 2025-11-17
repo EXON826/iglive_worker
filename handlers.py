@@ -11,6 +11,7 @@ from sqlalchemy import text
 from models import TelegramUser, ChatGroup
 from telegram_helper import TelegramHelper
 from translations import get_text, detect_language, LANGUAGE_NAMES
+from smart_notifications import send_referral_milestone_notification
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +205,11 @@ async def start_handler(session: Session, payload: dict):
                     referrer_msg += f"💎 *New Balance:* {referrer.points} points"
                     
                     await send_user_feedback(referrer.id, referrer_msg)
-                    logger.info(f"Awarded 10 referral points to {referrer.id}")
+                    logger.info(f"Awarded 5 referral points to {referrer.id}")
+                    
+                    # Send milestone notification if applicable
+                    new_referral_count = session.query(TelegramUser).filter_by(referred_by_id=referrer.id).count()
+                    await send_referral_milestone_notification(session, referrer.id, new_referral_count)
 
             # Show language selection menu for new users
             welcome_text = "🎉 *Welcome to IGLiveZBot!*\n\n"
@@ -239,6 +244,13 @@ async def start_handler(session: Session, payload: dict):
             prefix_message = get_text('good_morning', user.language) + "\n\n"
             prefix_message += get_text('daily_reset', user.language) + "\n\n"
             prefix_message += get_text('daily_bonus', user.language) + "\n\n"
+            
+            # Contextual tip based on referral progress
+            referral_count = session.query(TelegramUser).filter_by(referred_by_id=user.id).count()
+            if referral_count >= 25 and referral_count < 30:
+                prefix_message += f"🎯 *You're so close!* Only {30 - referral_count} more referrals for free Premium!\n\n"
+            elif referral_count >= 10 and referral_count < 25:
+                prefix_message += "💡 *Tip:* Keep referring friends to unlock free Premium at 30 referrals!\n\n"
             
             logger.info(f"Reset daily points for user {user.id}")
         else:
@@ -332,8 +344,16 @@ async def my_account_handler(session: Session, payload: dict):
         }
         
         # Edit the existing message instead of sending a new one
-        await helper.edit_message_text(chat_id, message_id, account_text, parse_mode="Markdown", reply_markup=buttons)
-        logger.info(f"Edited message with account details for user {user.id}")
+        try:
+            await helper.edit_message_text(chat_id, message_id, account_text, parse_mode="Markdown", reply_markup=buttons)
+            logger.info(f"Edited message with account details for user {user.id}")
+        except Exception as e:
+            logger.error(f"Error editing account message: {e}")
+            # Fallback: send new message
+            try:
+                await helper.send_message(sender_id, account_text, parse_mode="Markdown", reply_markup=buttons)
+            except:
+                await helper.send_message(sender_id, "⚠️ Error loading account. Please try /start")
 
     except Exception as e:
         logger.error(f"Error in my_account_handler for user {sender_id}: {e}", exc_info=True)
@@ -382,15 +402,39 @@ async def check_live_handler(session: Session, payload: dict):
             if user.points > 0:
                 user.points -= 1
                 session.commit()
+                
+                # Contextual tip when running low on points
+                if user.points == 1:
+                    tip_msg = "⚠️ *Low Points Alert!*\n\n"
+                    tip_msg += "You have only *1 point* left today.\n\n"
+                    tip_msg += "💡 *Quick tip:* Refer a friend to get +5 points instantly!\n\n"
+                    tip_msg += "Or upgrade to Premium for unlimited checks."
+                    
+                    tip_buttons = {
+                        "inline_keyboard": [
+                            [{"text": "🎁 Get Referral Link", "callback_data": "referrals"}],
+                            [{"text": "🌟 View Premium", "callback_data": "buy"}]
+                        ]
+                    }
+                    try:
+                        await helper.send_message(sender_id, tip_msg, parse_mode="Markdown", reply_markup=tip_buttons)
+                    except:
+                        pass  # Don't block main flow if tip fails
             else:
+                # Calculate time until reset
+                tomorrow_utc = (now_utc + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+                time_until_reset = tomorrow_utc - now_utc
+                hours = int(time_until_reset.total_seconds() // 3600)
+                minutes = int((time_until_reset.total_seconds() % 3600) // 60)
+                
                 no_points_msg = "😢 *No Points Left!*\n\n"
                 no_points_msg += "You're missing live streams right now!\n\n"
+                no_points_msg += f"⏰ *Points reset in:* {hours}h {minutes}m\n\n"
                 no_points_msg += "🌟 *UPGRADE TO PREMIUM:*\n"
                 no_points_msg += "  ✅ Unlimited checks 24/7\n"
                 no_points_msg += "  ⚡ Never miss a stream\n"
                 no_points_msg += "  💎 Only ⭐150 for 7 days\n\n"
-                no_points_msg += "🔄 *Or wait:* Points reset at midnight UTC\n"
-                no_points_msg += "🎁 *Or refer:* Get +5 points per friend\n"
+                no_points_msg += "🎁 *Or refer a friend:* Get +5 points instantly\n"
                 
                 buttons = {
                     "inline_keyboard": [
@@ -425,6 +469,31 @@ async def check_live_handler(session: Session, payload: dict):
         except Exception as e:
             logger.error(f"Error fetching live users: {e}")
             live_users = []
+            
+            # Better error handling - inform user
+            error_msg = "⚠️ *Temporary Issue*\n\n"
+            error_msg += "We're having trouble loading live streams right now.\n\n"
+            error_msg += "💡 *What to do:*\n"
+            error_msg += "  • Try again in a moment\n"
+            error_msg += "  • Check your internet connection\n"
+            error_msg += "  • Contact support if this persists\n\n"
+            error_msg += "_Your points have not been deducted._"
+            
+            error_buttons = {
+                "inline_keyboard": [
+                    [{"text": "🔄 Try Again", "callback_data": "check_live"}],
+                    [{"text": "💬 Contact Support", "url": REQUIRED_GROUP_URL}],
+                    [{"text": "⬅️ Back", "callback_data": "back"}]
+                ]
+            }
+            
+            # Refund the point if error occurred
+            if not is_unlimited and page == 1:
+                user.points += 1
+                session.commit()
+            
+            await helper.edit_message_text(chat_id, message_id, error_msg, parse_mode="Markdown", reply_markup=error_buttons)
+            return
         
         # Pagination setup
         PER_PAGE = 10
@@ -501,8 +570,18 @@ async def check_live_handler(session: Session, payload: dict):
         buttons = {"inline_keyboard": button_rows}
         
         # Edit the existing message instead of sending a new one
-        await helper.edit_message_text(chat_id, message_id, live_message, parse_mode="Markdown", reply_markup=buttons)
-        logger.info(f"User {user.id} checked live users page {page}/{total_pages}. Total: {total_users} live. Points: {user.points}")
+        try:
+            await helper.edit_message_text(chat_id, message_id, live_message, parse_mode="Markdown", reply_markup=buttons)
+            logger.info(f"User {user.id} checked live users page {page}/{total_pages}. Total: {total_users} live. Points: {user.points}")
+        except Exception as e:
+            logger.error(f"Error editing message: {e}")
+            # Fallback: send new message if edit fails
+            try:
+                await helper.send_message(sender_id, live_message, parse_mode="Markdown", reply_markup=buttons)
+            except Exception as e2:
+                logger.error(f"Error sending fallback message: {e2}")
+                # Last resort: simple error message
+                await helper.send_message(sender_id, "⚠️ An error occurred. Please try /start to restart the bot.")
 
     except Exception as e:
         logger.error(f"Error in check_live_handler for user {sender_id}: {e}", exc_info=True)
@@ -575,7 +654,14 @@ async def referrals_handler(session: Session, payload: dict):
                 ]
             ]
         }
-        await helper.edit_message_text(chat_id, message_id, referral_text, parse_mode="Markdown", reply_markup=buttons)
+        try:
+            await helper.edit_message_text(chat_id, message_id, referral_text, parse_mode="Markdown", reply_markup=buttons)
+        except Exception as e:
+            logger.error(f"Error editing referral message: {e}")
+            try:
+                await helper.send_message(sender_id, referral_text, parse_mode="Markdown", reply_markup=buttons)
+            except:
+                await helper.send_message(sender_id, "⚠️ Error loading referrals. Please try /start")
 
     except Exception as e:
         logger.error(f"Error in referrals_handler: {e}", exc_info=True)
@@ -638,7 +724,14 @@ async def help_handler(session: Session, payload: dict):
                 ]
             ]
         }
-        await helper.edit_message_text(chat_id, message_id, help_text, parse_mode="Markdown", reply_markup=buttons)
+        try:
+            await helper.edit_message_text(chat_id, message_id, help_text, parse_mode="Markdown", reply_markup=buttons)
+        except Exception as e:
+            logger.error(f"Error editing help message: {e}")
+            try:
+                await helper.send_message(sender_id, help_text, parse_mode="Markdown", reply_markup=buttons)
+            except:
+                await helper.send_message(sender_id, "⚠️ Error loading help. Please try /start")
 
     except Exception as e:
         logger.error(f"Error in help_handler: {e}", exc_info=True)
@@ -699,7 +792,14 @@ async def settings_handler(session: Session, payload: dict):
                 ]
             ]
         }
-        await helper.edit_message_text(chat_id, message_id, settings_text, parse_mode="Markdown", reply_markup=buttons)
+        try:
+            await helper.edit_message_text(chat_id, message_id, settings_text, parse_mode="Markdown", reply_markup=buttons)
+        except Exception as e:
+            logger.error(f"Error editing settings message: {e}")
+            try:
+                await helper.send_message(sender_id, settings_text, parse_mode="Markdown", reply_markup=buttons)
+            except:
+                await helper.send_message(sender_id, "⚠️ Error loading settings. Please try /start")
 
     except Exception as e:
         logger.error(f"Error in settings_handler: {e}", exc_info=True)
@@ -777,7 +877,14 @@ async def change_language_handler(session: Session, payload: dict):
             lang_buttons.append([{"text": "⬅️ Back", "callback_data": "settings"}])
             buttons = {"inline_keyboard": lang_buttons}
             
-            await helper.edit_message_text(chat_id, message_id, lang_text, parse_mode="Markdown", reply_markup=buttons)
+            try:
+                await helper.edit_message_text(chat_id, message_id, lang_text, parse_mode="Markdown", reply_markup=buttons)
+            except Exception as e:
+                logger.error(f"Error editing language selection: {e}")
+                try:
+                    await helper.send_message(sender_id, lang_text, parse_mode="Markdown", reply_markup=buttons)
+                except:
+                    await helper.send_message(sender_id, "⚠️ Error loading languages. Please try /start")
         else:
             # Extract language code and update
             lang_code = callback_data.split(':')[1] if ':' in callback_data else user.language
@@ -802,7 +909,14 @@ async def change_language_handler(session: Session, payload: dict):
                     ]
                 ]
             }
-            await helper.edit_message_text(chat_id, message_id, confirm_text, parse_mode="Markdown", reply_markup=buttons)
+            try:
+                await helper.edit_message_text(chat_id, message_id, confirm_text, parse_mode="Markdown", reply_markup=buttons)
+            except Exception as e:
+                logger.error(f"Error editing language confirmation: {e}")
+                try:
+                    await helper.send_message(sender_id, confirm_text, parse_mode="Markdown", reply_markup=buttons)
+                except:
+                    await helper.send_message(sender_id, "⚠️ Language changed but display error occurred. Please try /start")
 
     except Exception as e:
         logger.error(f"Error in change_language_handler: {e}", exc_info=True)

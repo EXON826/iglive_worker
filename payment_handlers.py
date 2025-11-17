@@ -70,7 +70,14 @@ async def buy_handler(session: Session, payload: dict):
             ]
         }
 
-        await helper.edit_message_text(chat_id, message_id, buy_text, parse_mode="Markdown", reply_markup=buttons)
+        try:
+            await helper.edit_message_text(chat_id, message_id, buy_text, parse_mode="Markdown", reply_markup=buttons)
+        except Exception as e:
+            logger.error(f"Error editing buy message: {e}")
+            try:
+                await helper.send_message(sender_id, buy_text, parse_mode="Markdown", reply_markup=buttons)
+            except:
+                await helper.send_message(sender_id, "⚠️ Error loading payment options. Please try again or contact support.")
 
     except Exception as e:
         logger.error(f"Error in buy_handler: {e}", exc_info=True)
@@ -111,6 +118,18 @@ async def payment_handler(session: Session, payload: dict):
             logger.info(f"Invoice sent to {sender_id} for {package_id}")
         else:
             logger.error(f"Failed to send invoice to {sender_id}")
+            # Notify user of error
+            error_msg = "⚠️ *Payment Error*\n\n"
+            error_msg += "We couldn't process your payment request.\n\n"
+            error_msg += "💡 *Try this:*\n"
+            error_msg += "  • Make sure you have Telegram Stars\n"
+            error_msg += "  • Try again in a moment\n"
+            error_msg += "  • Contact support if issue persists"
+            
+            try:
+                await helper.send_message(sender_id, error_msg, parse_mode="Markdown")
+            except:
+                pass
 
     except Exception as e:
         logger.error(f"Error in payment_handler: {e}", exc_info=True)
@@ -233,10 +252,26 @@ async def successful_payment_handler(session: Session, payload: dict):
 
         session.commit()
 
-        # Send confirmation
+        # Send confirmation with contextual tip
         helper = TelegramHelper()
-        await helper.send_message(sender_id, success_msg, parse_mode="Markdown")
-        logger.info(f"Payment processed for {sender_id}: {package_id}")
+        
+        # Add contextual tip based on purchase
+        if 'points' in package:
+            success_msg += "\n\n💡 *Tip:* Use your points wisely! Each check costs 1 point."
+        else:
+            success_msg += "\n\n🎉 *Welcome to Premium!*\n"
+            success_msg += "You now have unlimited checks. Enjoy tracking all your favorite streamers!"
+        
+        try:
+            await helper.send_message(sender_id, success_msg, parse_mode="Markdown")
+            logger.info(f"Payment processed for {sender_id}: {package_id}")
+        except Exception as e:
+            logger.error(f"Error sending payment confirmation: {e}")
+            # Try without markdown as fallback
+            try:
+                await helper.send_message(sender_id, "Payment successful! Your account has been updated.")
+            except:
+                logger.error(f"Failed to send any payment confirmation to {sender_id}")
 
     except Exception as e:
         logger.error(f"Error in successful_payment_handler: {e}", exc_info=True)
