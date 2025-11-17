@@ -176,6 +176,7 @@ async def worker_main_loop(session_factory, run_once=False):
 
             # --- 2. Process the Job ---
             if job_to_process:
+                job_start_time = time.time()
                 success = await process_job(job_to_process, session_factory)
                 
                 # --- 3. Update Job Status ---
@@ -202,12 +203,12 @@ async def worker_main_loop(session_factory, run_once=False):
                 session.commit()
                 
                 # Log performance metrics
-                processing_time = time.time() - start_time
+                processing_time = time.time() - job_start_time
                 logger.info(f"Job {job_to_process['job_id']} finished with status: {final_status} in {processing_time:.2f}s")
                 
                 # Log slow jobs
                 if processing_time > 5.0:
-                    logger.warning(f"Slow job detected: {job_id} ({job_type}) took {processing_time:.2f}s")
+                    logger.warning(f"Slow job detected: {job_to_process['job_id']} ({job_to_process['job_type']}) took {processing_time:.2f}s")
                 
                 if run_once:
                     logger.info("run_once is True, exiting after processing one job.")

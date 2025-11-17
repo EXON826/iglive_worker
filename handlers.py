@@ -638,7 +638,7 @@ async def check_live_handler(session: Session, payload: dict):
         buttons = {"inline_keyboard": button_rows}
         
         try:
-            await helper.edit_message_text(chat_id, message_id, live_message, parse_mode="Markdown", reply_markup=buttons, disable_web_page_preview=True)
+            await helper.edit_message_text(chat_id, message_id, live_message, parse_mode="Markdown", reply_markup=buttons)
             logger.info(f"User {user.id} checked live users page {page}/{total_pages}. Total: {total_users} live. Points: {user.points}")
         except Exception as e:
             logger.error(f"Error editing message: {e}")
