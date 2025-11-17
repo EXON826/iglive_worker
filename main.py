@@ -4,6 +4,7 @@ import os
 import json
 import logging
 import asyncio
+import time
 from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, text
@@ -28,6 +29,7 @@ from handlers import (
     toggle_notifications_handler,
     clear_notifications_handler,
 )
+from rate_limiter import rate_limiter
 from payment_handlers import (
     buy_handler,
     payment_handler,
@@ -35,9 +37,9 @@ from payment_handlers import (
     successful_payment_handler,
 )
 
-# --- Logging Setup ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# --- Enhanced Logging Setup ---
+from logging_config import setup_production_logging
+logger = setup_production_logging()
 
 POLLING_INTERVAL = 2 # seconds
 
@@ -62,6 +64,7 @@ async def process_job(job, session_factory):
         logger.error(f"Invalid JSON payload for job_id: {job_id}. Payload: {payload_data}, Error: {e}")
         return False
 
+    start_time = time.time()
     logger.info(f"Processing job_id: {job_id} of type: {job_type}")
     session = session_factory()
 
@@ -80,6 +83,12 @@ async def process_job(job, session_factory):
                     elif text.startswith('/activate'):
                         await activate_handler(session, payload)
             elif 'callback_query' in payload:
+                # Rate limiting for button clicks
+                sender_id = payload['callback_query'].get('from', {}).get('id')
+                if sender_id and not rate_limiter.is_allowed(sender_id, 'button_click'):
+                    logger.warning(f"Button click rate limit exceeded for user {sender_id}")
+                    return True  # Consider as processed to avoid retries
+                
                 callback_data = payload['callback_query'].get('data')
                 if callback_data == 'my_account':
                     await my_account_handler(session, payload)
@@ -191,7 +200,14 @@ async def worker_main_loop(session_factory, run_once=False):
                     'job_id': job_to_process['job_id']
                 })
                 session.commit()
-                logger.info(f"Job {job_to_process['job_id']} finished with status: {final_status}")
+                
+                # Log performance metrics
+                processing_time = time.time() - start_time
+                logger.info(f"Job {job_to_process['job_id']} finished with status: {final_status} in {processing_time:.2f}s")
+                
+                # Log slow jobs
+                if processing_time > 5.0:
+                    logger.warning(f"Slow job detected: {job_id} ({job_type}) took {processing_time:.2f}s")
                 
                 if run_once:
                     logger.info("run_once is True, exiting after processing one job.")

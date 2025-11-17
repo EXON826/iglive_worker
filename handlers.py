@@ -12,6 +12,7 @@ from models import TelegramUser, ChatGroup
 from telegram_helper import TelegramHelper
 from translations import get_text, detect_language, LANGUAGE_NAMES
 from smart_notifications import send_referral_milestone_notification
+from rate_limiter import rate_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -426,6 +427,17 @@ async def check_live_handler(session: Session, payload: dict):
 
         if not sender_id:
             logger.error("Could not determine sender_id from payload.")
+            return
+        
+        # Rate limiting for live checks
+        if not rate_limiter.is_allowed(sender_id, 'check_live'):
+            reset_time = rate_limiter.get_reset_time(sender_id, 'check_live')
+            error_msg = f"⚠️ *Too many requests!*\n\nPlease wait {reset_time} seconds before checking again."
+            helper = TelegramHelper()
+            try:
+                await helper.edit_message_text(chat_id, message_id, error_msg, parse_mode="Markdown")
+            except:
+                pass
             return
 
         helper = TelegramHelper()

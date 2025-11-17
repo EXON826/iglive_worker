@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from models import TelegramUser, StarPayment
 from telegram_helper import TelegramHelper
+from rate_limiter import rate_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +105,12 @@ async def payment_handler(session: Session, payload: dict):
         callback_data = callback_query.get('data', '')
 
         if not sender_id or not callback_data.startswith('pay:'):
+            return
+        
+        # Rate limiting for payment attempts
+        if not rate_limiter.is_allowed(sender_id, 'payment'):
+            reset_time = rate_limiter.get_reset_time(sender_id, 'payment')
+            logger.warning(f"Payment rate limit exceeded for user {sender_id}")
             return
 
         package_id = callback_data.split(':')[1]
