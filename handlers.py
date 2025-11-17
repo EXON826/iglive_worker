@@ -836,7 +836,8 @@ async def settings_handler(session: Session, payload: dict):
         settings_text += f"🌍 *Language:* {LANGUAGE_NAMES.get(user.language, 'English')}\n"
         
         if is_premium:
-            notifications_status = "🔔 ON" if user.notifications_enabled else "🔕 OFF"
+            notifications_enabled = getattr(user, 'notifications_enabled', True)
+            notifications_status = "🔔 ON" if notifications_enabled else "🔕 OFF"
             settings_text += f"🔔 *Live Notifications:* {notifications_status}\n"
         
         settings_text += "\nChoose an option below:"
@@ -846,7 +847,8 @@ async def settings_handler(session: Session, payload: dict):
         ]
         
         if is_premium:
-            toggle_text = "🔕 Turn OFF Notifications" if user.notifications_enabled else "🔔 Turn ON Notifications"
+            notifications_enabled = getattr(user, 'notifications_enabled', True)
+            toggle_text = "🔕 Turn OFF Notifications" if notifications_enabled else "🔔 Turn ON Notifications"
             button_rows.append([
                 {"text": toggle_text, "callback_data": "toggle_notifications"},
                 {"text": "🗑️ Clear All", "callback_data": "clear_notifications"}
@@ -969,8 +971,9 @@ async def toggle_notifications_handler(session: Session, payload: dict):
             await send_user_feedback(sender_id, "❌ Please use /start first to register.")
             return
 
-        # Toggle notifications
-        user.notifications_enabled = not user.notifications_enabled
+        # Toggle notifications (handle missing column)
+        current_status = getattr(user, 'notifications_enabled', True)
+        user.notifications_enabled = not current_status
         session.commit()
         
         status = "enabled" if user.notifications_enabled else "disabled"

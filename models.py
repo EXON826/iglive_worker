@@ -87,6 +87,7 @@ class TelegramUser(Base):
     subscription_end = Column(DateTime, nullable=True)
     referred_by_id = Column(BIGINT, ForeignKey('telegram_users.id'), nullable=True)
     language = Column(String, default='en', nullable=False)  # Language preference
+    notifications_enabled = Column(Boolean, default=True, nullable=False)  # Notification preference
     user_bots = relationship("UserBot", back_populates="owner")
     referrals = relationship("TelegramUser", backref="referrer", remote_side=[id])
 
