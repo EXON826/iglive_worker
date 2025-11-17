@@ -938,18 +938,13 @@ async def clear_notifications_handler(session: Session, payload: dict):
             except:
                 pass  # Message doesn't exist or can't be deleted
         
-        # Show result and return to settings
-        result_text = f"✅ *Cleared {cleared_count} messages!*\n\n"
-        result_text += "Returning to settings..."
+        # Show result only
+        result_text = f"✅ *Cleared {cleared_count} messages!*"
         
         try:
             await helper.edit_message_text(chat_id, message_id, result_text, parse_mode="Markdown")
-            await asyncio.sleep(2)  # Show result for 2 seconds
         except:
             pass
-        
-        # Return to settings menu
-        await settings_handler(session, payload)
         
         logger.info(f"User {sender_id} cleared {cleared_count} notification messages")
 
