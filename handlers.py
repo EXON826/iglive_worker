@@ -25,6 +25,27 @@ REQUIRED_GROUP_ID = -1002891494486
 REQUIRE_GROUP_MEMBERSHIP = False
 
 
+def md_escape(text: str) -> str:
+    """Escape Telegram Markdown (v1) special chars in dynamic text."""
+    if not text:
+        return ""
+    return (text
+        .replace('\\', '\\\\')
+        .replace('_', '\\_')
+        .replace('*', '\\*')
+        .replace('[', '\\[')
+        .replace(']', '\\]')
+        .replace('(', '\\(')
+        .replace(')', '\\)')
+        .replace('`', '\\`')
+    )
+
+
+def md_link(title: str, url: str) -> str:
+    """Safe clickable link for Markdown."""
+    return f"[{md_escape(title)}]({url})"
+
+
 def get_animated_progress_bar(current: int, total: int, length: int = 10) -> str:
     """Create animated progress bar with ▰▱ characters."""
     filled = int((current / total) * length) if total > 0 else 0
@@ -55,9 +76,18 @@ def get_relative_time(dt: datetime) -> str:
 
 def create_stream_card(username: str, link: str, total_lives: int, last_live: datetime, index: int) -> str:
     """Create card-style formatting for live stream."""
-    card = f"┌─────────────────┐\n"
-    card += f"│ {link} │\n"
-    card += f"└─────────────────┘"
+    uname = '@' + (username or '').lstrip('@')
+    uname_md = md_escape(uname)
+    rel = get_relative_time(last_live)
+    lives = total_lives or 0
+
+    card = (
+        f"{index}. {uname_md}\n"
+        f"┌────────────────────────────────┐\n"
+        f"│ ▶️ {md_link('Watch now', link)}\n"
+        f"│ 📊 Lives: {lives}   ⏱ {md_escape(rel)}\n"
+        f"└────────────────────────────────┘"
+    )
     return card
 
 
@@ -544,13 +574,13 @@ async def check_live_handler(session: Session, payload: dict):
             else:
                 live_message += f"Found *{total_users}* live stream{'s' if total_users != 1 else ''}!\n\n"
             
-            for idx, user_data in enumerate(page_users, 1):
+            for idx, user_data in enumerate(page_users, start=start_idx + 1):
                 username = user_data['username']
-                link = user_data.get('link', f"https://instagram.com/{username.lstrip('@')}")
+                link = user_data.get('link', f"https://instagram.com/{(username or '').lstrip('@')}")
                 total_lives = user_data.get('total_lives') or 0
                 last_live = user_data.get('last_live_at')
                 
-                live_message += create_stream_card(username, link, total_lives, last_live, start_idx + idx)
+                live_message += create_stream_card(username, link, total_lives, last_live, idx)
                 live_message += "\n\n"
         else:
             live_message = "🔴 *LIVE NOW*\n"
@@ -603,7 +633,7 @@ async def check_live_handler(session: Session, payload: dict):
         buttons = {"inline_keyboard": button_rows}
         
         try:
-            await helper.edit_message_text(chat_id, message_id, live_message, parse_mode="Markdown", reply_markup=buttons)
+            await helper.edit_message_text(chat_id, message_id, live_message, parse_mode="Markdown", reply_markup=buttons, disable_web_page_preview=True)
             logger.info(f"User {user.id} checked live users page {page}/{total_pages}. Total: {total_users} live. Points: {user.points}")
         except Exception as e:
             logger.error(f"Error editing message: {e}")
