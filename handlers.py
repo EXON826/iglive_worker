@@ -4,7 +4,7 @@
 import os
 import logging
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -153,7 +153,7 @@ async def start_handler(session: Session, payload: dict):
                 id=sender_id,
                 username=from_user.get('username'),
                 first_name=from_user.get('first_name'),
-                points=10,
+                points=3,
                 last_seen=datetime.now(timezone.utc),
                 referred_by_id=referred_by_id,
                 language=user_lang
@@ -167,12 +167,12 @@ async def start_handler(session: Session, payload: dict):
             if referred_by_id:
                 referrer = session.query(TelegramUser).filter_by(id=referred_by_id).first()
                 if referrer:
-                    referrer.points += 10
+                    referrer.points += 5
                     session.commit()
                     
                     referrer_msg = f"🎊 *Referral Success!*\n\n"
                     referrer_msg += f"{username} just joined using your referral link!\n\n"
-                    referrer_msg += "💰 *Reward:* +10 Points\n"
+                    referrer_msg += "💰 *Reward:* +5 Points\n"
                     referrer_msg += f"💎 *New Balance:* {referrer.points} points"
                     
                     await send_user_feedback(referrer.id, referrer_msg)
@@ -204,7 +204,7 @@ async def start_handler(session: Session, payload: dict):
 
         elif is_new_day_for_user(user):
             # Daily reset
-            user.points = 10
+            user.points = 3
             user.last_seen = datetime.now(timezone.utc)
             session.commit()
             
@@ -271,11 +271,14 @@ async def my_account_handler(session: Session, payload: dict):
             account_text += f"✅ Unlimited Checks\n"
             account_text += f"📅 Valid Until: {user.subscription_end.strftime('%b %d, %Y')}\n"
         else:
-            account_text += "💰 *POINTS BALANCE*\n"
+            account_text += "💰 *FREE ACCOUNT*\n"
             account_text += "━━━━━━━━━━━━━━━━━━━━\n"
-            account_text += f"💎 Current: *{user.points} points*\n"
-            account_text += f"🔄 Resets: Daily at midnight UTC\n"
-            account_text += f"✨ Cost: 1 point per check\n"
+            account_text += f"💎 Points: *{user.points}/3*\n"
+            account_text += f"🔄 Resets: Daily at midnight UTC\n\n"
+            account_text += "❌ *What you're missing:*\n"
+            account_text += "  • Unlimited checks\n"
+            account_text += "  • No daily limits\n"
+            account_text += "  • Priority features\n"
         
         account_text += "\n💡 *Tip:* Refer friends to earn bonus points!"
         
@@ -345,16 +348,25 @@ async def check_live_handler(session: Session, payload: dict):
                 user.points -= 1
                 session.commit()
             else:
-                no_points_msg = "⚠️ *No Points Left!*\n\n"
-                no_points_msg += "You've used all your points for today.\n\n"
-                no_points_msg += "🔄 *Points reset daily at midnight UTC*\n\n"
-                no_points_msg += "💡 *Get more points:*\n"
-                no_points_msg += "  • Wait for daily reset\n"
-                no_points_msg += "  • Refer friends (+10 each)\n"
-                no_points_msg += "  • Upgrade to unlimited\n"
+                no_points_msg = "😢 *No Points Left!*\n\n"
+                no_points_msg += "You're missing live streams right now!\n\n"
+                no_points_msg += "🌟 *UPGRADE TO PREMIUM:*\n"
+                no_points_msg += "  ✅ Unlimited checks 24/7\n"
+                no_points_msg += "  ⚡ Never miss a stream\n"
+                no_points_msg += "  💎 Only ⭐150 for 7 days\n\n"
+                no_points_msg += "🔄 *Or wait:* Points reset at midnight UTC\n"
+                no_points_msg += "🎁 *Or refer:* Get +5 points per friend\n"
+                
+                buttons = {
+                    "inline_keyboard": [
+                        [{"text": "🌟 Upgrade Now", "callback_data": "buy"}],
+                        [{"text": "🎁 Get Referral Link", "callback_data": "referrals"}],
+                        [{"text": "⬅️ Back", "callback_data": "back"}]
+                    ]
+                }
                 
                 logger.info(f"User {user.id} has no points left.")
-                await send_user_feedback(sender_id, no_points_msg)
+                await helper.send_message(sender_id, no_points_msg, parse_mode="Markdown", reply_markup=buttons)
                 return
         
         # Get live users from database
@@ -411,14 +423,22 @@ async def check_live_handler(session: Session, payload: dict):
             live_message += "💡 Live streams are tracked in real-time.\n"
             live_message += "   Check back in a few minutes!\n"
         
+        # Calculate time until reset
+        now_utc = datetime.now(timezone.utc)
+        tomorrow_utc = (now_utc + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        time_until_reset = tomorrow_utc - now_utc
+        hours = int(time_until_reset.total_seconds() // 3600)
+        minutes = int((time_until_reset.total_seconds() % 3600) // 60)
+        
         # Add points/subscription info
         live_message += "\n━━━━━━━━━━━━━━━━━━━━\n"
         if is_unlimited:
             live_message += f"💎 *Status:* Premium (Unlimited)\n"
         else:
-            live_message += f"💰 *Points Left:* {user.points}\n"
+            live_message += f"💰 *Points Left:* {user.points}/3\n"
+            live_message += f"⏰ *Reset in:* {hours}h {minutes}m\n"
         
-        live_message += f"⏰ *Updated:* {datetime.now(timezone.utc).strftime('%I:%M %p UTC')}"
+        live_message += f"🔄 *Updated:* {datetime.now(timezone.utc).strftime('%I:%M %p UTC')}"
         
         # Build pagination buttons
         button_rows = []
@@ -432,6 +452,8 @@ async def check_live_handler(session: Session, payload: dict):
             if nav_buttons:
                 button_rows.append(nav_buttons)
         
+        if not is_unlimited:
+            button_rows.append([{"text": "🌟 Upgrade to Unlimited", "callback_data": "buy"}])
         button_rows.append([{"text": "🔄 Refresh", "callback_data": "check_live"}])
         button_rows.append([{"text": "⬅️ Back to Menu", "callback_data": "back"}])
         

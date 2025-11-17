@@ -58,7 +58,7 @@ async def buy_handler(session: Session, payload: dict):
                 [{"text": "💎 100 Points (⭐ 90)", "callback_data": "pay:points_100"}],
                 [{"text": "💎 500 Points (⭐ 400)", "callback_data": "pay:points_500"}],
                 [{"text": "🌟 7 Days (⭐ 150)", "callback_data": "pay:premium_7d"}],
-                [{"text": "🌟 30 Days (⭐ 500)", "callback_data": "pay:premium_30d"}],
+                [{"text": "🌟 30 Days (⭐ 500) 🔥 POPULAR", "callback_data": "pay:premium_30d"}],
                 [{"text": "🌟 6 Months (⭐ 2,500)", "callback_data": "pay:premium_6m"}],
                 [{"text": "🌟 1 Year (⭐ 4,500)", "callback_data": "pay:premium_1y"}],
                 [{"text": "⬅️ Back", "callback_data": "back"}]
