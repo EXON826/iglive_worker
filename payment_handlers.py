@@ -20,7 +20,7 @@ PAYMENT_PACKAGES = {
     'points_100': {'stars': 90, 'points': 100, 'title': '100 Points', 'desc': 'Get 100 points (10% bonus)'},
     'points_500': {'stars': 400, 'points': 500, 'title': '500 Points', 'desc': 'Get 500 points (20% bonus)'},
     'premium_7d': {'stars': 150, 'days': 7, 'title': '7 Days Premium', 'desc': 'Unlimited checks for 7 days'},
-    'premium_30d': {'stars': 500, 'days': 30, 'title': '30 Days Premium', 'desc': 'Unlimited checks for 30 days'},
+    'premium_30d': {'stars': 1, 'days': 30, 'title': '30 Days Premium', 'desc': 'Unlimited checks for 30 days'},
     'premium_6m': {'stars': 2500, 'days': 180, 'title': '6 Months Premium', 'desc': 'Unlimited checks for 6 months (Save 17%)'},
     'premium_1y': {'stars': 4500, 'days': 365, 'title': '1 Year Premium', 'desc': 'Unlimited checks for 1 year (Save 25%)'},
 }
@@ -65,7 +65,7 @@ async def buy_handler(session: Session, payload: dict):
         buy_text += "  • 500 Points - ⭐ 400 Stars 🎁 +20% bonus\n\n"
         buy_text += "🌟 *Premium Packages:*\n"
         buy_text += "  • 7 Days - ⭐ 150 Stars\n"
-        buy_text += "  • 30 Days - ⭐ 500 Stars 🔥 Most Popular\n"
+        buy_text += "  • 30 Days - ⭐ 1 Star 🔥 Most Popular\n"
         buy_text += "  • 6 Months - ⭐ 2,500 Stars 💰 Save 17%\n"
         buy_text += "  • 1 Year - ⭐ 4,500 Stars 🏆 Save 25%\n\n"
         buy_text += "━━━━━━━━━━━━━━━━━━━━\n"
@@ -82,7 +82,7 @@ async def buy_handler(session: Session, payload: dict):
                 [{"text": "💎 500 Points - ⭐ 400 🎁", "callback_data": "pay:points_500"}],
                 [{"text": "━━━━━━━━━━━━━━━━━━━━", "callback_data": "ignore"}],
                 [{"text": "🌟 7 Days - ⭐ 150", "callback_data": "pay:premium_7d"}],
-                [{"text": "🌟 30 Days - ⭐ 500 🔥", "callback_data": "pay:premium_30d"}],
+                [{"text": "🌟 30 Days - ⭐ 1 🔥", "callback_data": "pay:premium_30d"}],
                 [{"text": "🌟 6 Months - ⭐ 2,500 💰", "callback_data": "pay:premium_6m"}],
                 [{"text": "🌟 1 Year - ⭐ 4,500 🏆", "callback_data": "pay:premium_1y"}],
                 [{"text": "⬅️ Back", "callback_data": "back"}]
