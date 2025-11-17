@@ -1,5 +1,5 @@
-# worker/handlers_improved.py
-# Improved UI/UX version with better formatting, emojis, and user experience
+# worker/handlers_improved_ui.py
+# Enhanced UI/UX version with animated progress bars, card-style formatting, and loading states
 
 import os
 import logging
@@ -22,8 +22,47 @@ BOT_API_HASH = os.environ.get('BOT_API_HASH')
 REQUIRED_GROUP_URL = "https://t.me/+FBDgBcLD1C5jN2Jk"
 REQUIRED_GROUP_ID = -1002891494486
 
-# Feature flag: Set to False to disable group membership requirement
 REQUIRE_GROUP_MEMBERSHIP = False
+
+
+def get_animated_progress_bar(current: int, total: int, length: int = 10) -> str:
+    """Create animated progress bar with ▰▱ characters."""
+    filled = int((current / total) * length) if total > 0 else 0
+    return "▰" * filled + "▱" * (length - filled)
+
+
+def get_relative_time(dt: datetime) -> str:
+    """Convert datetime to relative time string."""
+    if not dt:
+        return "Unknown"
+    
+    now = datetime.now(timezone.utc)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    
+    diff = now - dt
+    seconds = int(diff.total_seconds())
+    
+    if seconds < 60:
+        return "Just now"
+    elif seconds < 3600:
+        return f"{seconds // 60}m ago"
+    elif seconds < 86400:
+        return f"{seconds // 3600}h ago"
+    else:
+        return f"{seconds // 86400}d ago"
+
+
+def create_stream_card(username: str, link: str, total_lives: int, last_live: datetime, index: int) -> str:
+    """Create card-style formatting for live stream."""
+    relative_time = get_relative_time(last_live)
+    card = f"┏━━━━━━━━━━━━━━━━━━━┓\n"
+    card += f"┃ {index}. 🔴 *[{username}]({link})*\n"
+    if total_lives and total_lives > 0:
+        card += f"┃ 📊 Lives: {total_lives}\n"
+    card += f"┃ ⏰ {relative_time}\n"
+    card += f"┗━━━━━━━━━━━━━━━━━━━┛"
+    return card
 
 
 def is_new_day_for_user(user: TelegramUser) -> bool:
@@ -51,19 +90,16 @@ async def send_user_feedback(user_id: int, message: str):
 async def send_main_menu(user_id: int, prefix_message: str = "", username: str = None, lang: str = 'en', session: Session = None):
     """Send the main menu to a user with improved UI."""
     try:
-        # Greeting personalization
         greeting = f"Hey {username}! 👋" if username else get_text('welcome_back', lang)
         
         menu_text = f"{prefix_message}{greeting}\n\n"
         menu_text += get_text('bot_title', lang) + "\n"
         menu_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
         
-        # Add quick stats if session provided
         if session:
             try:
                 user = session.query(TelegramUser).filter_by(id=user_id).first()
                 if user:
-                    # Check if premium
                     now_utc = datetime.now(timezone.utc)
                     if user.subscription_end:
                         sub_end = user.subscription_end if user.subscription_end.tzinfo else user.subscription_end.replace(tzinfo=timezone.utc)
@@ -72,13 +108,15 @@ async def send_main_menu(user_id: int, prefix_message: str = "", username: str =
                         is_premium = False
                     
                     if is_premium:
-                        menu_text += "💎 *Status:* Premium ✨\n"
+                        menu_text += "╔═══════════════════╗\n"
+                        menu_text += "║  💎 PREMIUM USER  ║\n"
+                        menu_text += "╚═══════════════════╝\n"
                     else:
-                        # Visual progress bar for points
-                        points_bar = "█" * user.points + "░" * (3 - user.points)
-                        menu_text += f"💰 *Points:* {user.points}/3 [{points_bar}]\n"
+                        points_bar = get_animated_progress_bar(user.points, 3, 10)
+                        percentage = int((user.points / 3) * 100)
+                        menu_text += f"💰 *Points:* {user.points}/3\n"
+                        menu_text += f"[{points_bar}] {percentage}%\n"
                     
-                    # Get live count
                     live_count = session.execute(text("SELECT COUNT(*) FROM insta_links WHERE is_live = TRUE")).scalar()
                     menu_text += f"🔴 *Live Now:* {live_count} streams\n\n"
                     menu_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -93,7 +131,6 @@ async def send_main_menu(user_id: int, prefix_message: str = "", username: str =
         menu_text += f"     {get_text('refer_earn_desc', lang)}\n\n"
         menu_text += get_text('choose_option', lang)
 
-        # Check if user is premium to customize buttons
         is_premium = False
         if session:
             try:
@@ -105,14 +142,11 @@ async def send_main_menu(user_id: int, prefix_message: str = "", username: str =
             except:
                 pass
 
-        # Build buttons based on premium status
         button_rows = [
+            [{"text": "🔴 " + get_text('check_live', lang), "callback_data": "check_live"}],
             [
-                {"text": get_text('check_live', lang), "callback_data": "check_live"}
-            ],
-            [
-                {"text": get_text('my_account', lang), "callback_data": "my_account"},
-                {"text": get_text('referrals', lang), "callback_data": "referrals"}
+                {"text": "👤 " + get_text('my_account', lang), "callback_data": "my_account"},
+                {"text": "🎁 " + get_text('referrals', lang), "callback_data": "referrals"}
             ]
         ]
         
@@ -122,8 +156,8 @@ async def send_main_menu(user_id: int, prefix_message: str = "", username: str =
             button_rows.append([{"text": "⭐ Buy Premium", "callback_data": "buy"}])
         
         button_rows.append([
-            {"text": get_text('help', lang), "callback_data": "help"},
-            {"text": get_text('settings', lang), "callback_data": "settings"}
+            {"text": "ℹ️ " + get_text('help', lang), "callback_data": "help"},
+            {"text": "⚙️ " + get_text('settings', lang), "callback_data": "settings"}
         ])
         
         buttons = {"inline_keyboard": button_rows}
@@ -147,7 +181,6 @@ async def start_handler(session: Session, payload: dict):
             logger.error("Could not determine sender_id from payload.")
             return
 
-        # Group membership check with improved UI
         helper = TelegramHelper()
         if REQUIRE_GROUP_MEMBERSHIP:
             is_member = await helper.is_user_in_group(REQUIRED_GROUP_ID, sender_id)
@@ -162,15 +195,8 @@ async def start_handler(session: Session, payload: dict):
                 join_text += "  • Exclusive tips & tricks\n\n"
                 join_text += "👇 Click the button below to join now!"
                 
-                join_button = {
-                    "inline_keyboard": [[{"text": "✅ Join Community Group", "url": REQUIRED_GROUP_URL}]]
-                }
-                await helper.send_message(
-                    sender_id,
-                    join_text,
-                    parse_mode="Markdown",
-                    reply_markup=join_button
-                )
+                join_button = {"inline_keyboard": [[{"text": "✅ Join Community Group", "url": REQUIRED_GROUP_URL}]]}
+                await helper.send_message(sender_id, join_text, parse_mode="Markdown", reply_markup=join_button)
                 return
 
         user = session.query(TelegramUser).filter_by(id=sender_id).first()
@@ -179,7 +205,6 @@ async def start_handler(session: Session, payload: dict):
         username = from_user.get('first_name', 'there')
         
         if not user:
-            # New user registration - show language selection first
             referred_by_id = None
             text = message.get('text', '')
             if text and len(text.split()) > 1:
@@ -190,10 +215,8 @@ async def start_handler(session: Session, payload: dict):
                 except (ValueError, IndexError):
                     referred_by_id = None
 
-            # Detect user's language from Telegram as default
             user_lang = detect_language(from_user.get('language_code', 'en'))
 
-            # Create user with temporary language (will be confirmed by user)
             user = TelegramUser(
                 id=sender_id,
                 username=from_user.get('username'),
@@ -208,7 +231,6 @@ async def start_handler(session: Session, payload: dict):
             
             logger.info(f"New user created: {user.id} (@{user.username}) with detected language: {user_lang}")
 
-            # Award referral points
             if referred_by_id:
                 referrer = session.query(TelegramUser).filter_by(id=referred_by_id).first()
                 if referrer:
@@ -223,16 +245,13 @@ async def start_handler(session: Session, payload: dict):
                     await send_user_feedback(referrer.id, referrer_msg)
                     logger.info(f"Awarded 5 referral points to {referrer.id}")
                     
-                    # Send milestone notification if applicable
                     new_referral_count = session.query(TelegramUser).filter_by(referred_by_id=referrer.id).count()
                     await send_referral_milestone_notification(session, referrer.id, new_referral_count)
 
-            # Show language selection menu for new users
             welcome_text = "🎉 *Welcome to IGLiveZBot!*\n\n"
             welcome_text += f"Hey {username}! Great to have you here.\n\n"
             welcome_text += "🌍 *Please select your preferred language:*"
             
-            # Create language selection buttons (2 per row)
             lang_buttons = []
             languages = list(LANGUAGE_NAMES.items())
             for i in range(0, len(languages), 2):
@@ -240,7 +259,6 @@ async def start_handler(session: Session, payload: dict):
                 for j in range(2):
                     if i + j < len(languages):
                         lang_code, lang_name = languages[i + j]
-                        # Highlight detected language
                         display_name = f"✓ {lang_name}" if lang_code == user_lang else lang_name
                         row.append({"text": display_name, "callback_data": f"setlang:{lang_code}"})
                 lang_buttons.append(row)
@@ -249,10 +267,9 @@ async def start_handler(session: Session, payload: dict):
             
             await helper.send_message(sender_id, welcome_text, parse_mode="Markdown", reply_markup=buttons)
             logger.info(f"Sent language selection to new user {user.id}")
-            return  # Don't show main menu yet
+            return
 
         elif is_new_day_for_user(user):
-            # Daily reset
             user.points = 3
             user.last_seen = datetime.now(timezone.utc)
             session.commit()
@@ -261,7 +278,6 @@ async def start_handler(session: Session, payload: dict):
             prefix_message += get_text('daily_reset', user.language) + "\n\n"
             prefix_message += get_text('daily_bonus', user.language) + "\n\n"
             
-            # Contextual tip based on referral progress
             referral_count = session.query(TelegramUser).filter_by(referred_by_id=user.id).count()
             if referral_count >= 25 and referral_count < 30:
                 prefix_message += f"🎯 *You're so close!* Only {30 - referral_count} more referrals for free Premium!\n\n"
@@ -270,7 +286,6 @@ async def start_handler(session: Session, payload: dict):
             
             logger.info(f"Reset daily points for user {user.id}")
         else:
-            # Returning user
             user.last_seen = datetime.now(timezone.utc)
             session.commit()
 
@@ -304,7 +319,6 @@ async def my_account_handler(session: Session, payload: dict):
             await send_user_feedback(sender_id, "❌ Please use /start first to register.")
             return
 
-        # Fix timezone comparison
         now_utc = datetime.now(timezone.utc)
         if user.subscription_end:
             sub_end = user.subscription_end if user.subscription_end.tzinfo else user.subscription_end.replace(tzinfo=timezone.utc)
@@ -312,10 +326,8 @@ async def my_account_handler(session: Session, payload: dict):
         else:
             is_unlimited = False
         
-        # Count total checks (approximate from points used)
         referral_count = session.query(TelegramUser).filter_by(referred_by_id=user.id).count()
         
-        # Create visual account card
         account_text = "👤 *YOUR ACCOUNT*\n"
         account_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
         
@@ -327,16 +339,19 @@ async def my_account_handler(session: Session, payload: dict):
         
         if is_unlimited:
             days_left = (sub_end - now_utc).days
-            account_text += "💎 *PREMIUM STATUS*\n"
-            account_text += "━━━━━━━━━━━━━━━━━━━━\n"
+            account_text += "╔═══════════════════╗\n"
+            account_text += "║  💎 PREMIUM USER  ║\n"
+            account_text += "╚═══════════════════╝\n\n"
             account_text += f"✅ Unlimited Checks\n"
             account_text += f"📅 Valid Until: {user.subscription_end.strftime('%b %d, %Y')}\n"
             account_text += f"⏳ Days Left: {days_left} days\n"
         else:
-            points_bar = "█" * user.points + "░" * (3 - user.points)
+            points_bar = get_animated_progress_bar(user.points, 3, 10)
+            percentage = int((user.points / 3) * 100)
             account_text += "💰 *FREE ACCOUNT*\n"
             account_text += "━━━━━━━━━━━━━━━━━━━━\n"
-            account_text += f"💎 Points: *{user.points}/3* [{points_bar}]\n"
+            account_text += f"💎 Points: *{user.points}/3*\n"
+            account_text += f"[{points_bar}] {percentage}%\n"
             account_text += f"🔄 Resets: Daily at midnight UTC\n\n"
             account_text += "❌ *What you're missing:*\n"
             account_text += "  • Unlimited checks\n"
@@ -351,39 +366,25 @@ async def my_account_handler(session: Session, payload: dict):
         if is_unlimited:
             buttons = {
                 "inline_keyboard": [
-                    [
-                        {"text": "🔄 Renew Premium", "callback_data": "buy"}
-                    ],
-                    [
-                        {"text": "🎁 Get Referral Link", "callback_data": "referrals"}
-                    ],
-                    [
-                        {"text": "⬅️ Back to Menu", "callback_data": "back"}
-                    ]
+                    [{"text": "🔄 Renew Premium", "callback_data": "buy"}],
+                    [{"text": "🎁 Get Referral Link", "callback_data": "referrals"}],
+                    [{"text": "⬅️ Back to Menu", "callback_data": "back"}]
                 ]
             }
         else:
             buttons = {
                 "inline_keyboard": [
-                    [
-                        {"text": "⭐ Buy Points/Premium", "callback_data": "buy"}
-                    ],
-                    [
-                        {"text": "🎁 Get Referral Link", "callback_data": "referrals"}
-                    ],
-                    [
-                        {"text": "⬅️ Back to Menu", "callback_data": "back"}
-                    ]
+                    [{"text": "⭐ Buy Points/Premium", "callback_data": "buy"}],
+                    [{"text": "🎁 Get Referral Link", "callback_data": "referrals"}],
+                    [{"text": "⬅️ Back to Menu", "callback_data": "back"}]
                 ]
             }
         
-        # Edit the existing message instead of sending a new one
         try:
             await helper.edit_message_text(chat_id, message_id, account_text, parse_mode="Markdown", reply_markup=buttons)
             logger.info(f"Edited message with account details for user {user.id}")
         except Exception as e:
             logger.error(f"Error editing account message: {e}")
-            # Fallback: send new message
             try:
                 await helper.send_message(sender_id, account_text, parse_mode="Markdown", reply_markup=buttons)
             except:
@@ -395,7 +396,7 @@ async def my_account_handler(session: Session, payload: dict):
 
 
 async def check_live_handler(session: Session, payload: dict):
-    """Displays currently live Instagram users with pagination."""
+    """Displays currently live Instagram users with card-style formatting."""
     try:
         callback_query = payload.get('callback_query', {})
         from_user = callback_query.get('from', {})
@@ -410,7 +411,12 @@ async def check_live_handler(session: Session, payload: dict):
 
         helper = TelegramHelper()
 
-        # Parse page number from callback_data (e.g., "check_live:2")
+        # Show loading state
+        try:
+            await helper.edit_message_text(chat_id, message_id, "⏳ *Loading live streams...*\n\nPlease wait a moment.", parse_mode="Markdown")
+        except:
+            pass
+
         callback_data = callback_query.get('data', 'check_live')
         page = 1
         if ':' in callback_data:
@@ -425,19 +431,18 @@ async def check_live_handler(session: Session, payload: dict):
             await send_user_feedback(sender_id, "❌ Please use /start first to register.")
             return
 
-        # Check points/subscription (only deduct on first page)
         now_utc = datetime.now(timezone.utc)
         if user.subscription_end:
             sub_end = user.subscription_end if user.subscription_end.tzinfo else user.subscription_end.replace(tzinfo=timezone.utc)
             is_unlimited = sub_end > now_utc
         else:
             is_unlimited = False
+            
         if not is_unlimited and page == 1:
             if user.points > 0:
                 user.points -= 1
                 session.commit()
                 
-                # Contextual tip when running low on points
                 if user.points == 1:
                     tip_msg = "⚠️ *Low Points Alert!*\n\n"
                     tip_msg += "You have only *1 point* left today.\n\n"
@@ -453,9 +458,8 @@ async def check_live_handler(session: Session, payload: dict):
                     try:
                         await helper.send_message(sender_id, tip_msg, parse_mode="Markdown", reply_markup=tip_buttons)
                     except:
-                        pass  # Don't block main flow if tip fails
+                        pass
             else:
-                # Calculate time until reset
                 tomorrow_utc = (now_utc + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
                 time_until_reset = tomorrow_utc - now_utc
                 hours = int(time_until_reset.total_seconds() // 3600)
@@ -482,7 +486,6 @@ async def check_live_handler(session: Session, payload: dict):
                 await helper.send_message(sender_id, no_points_msg, parse_mode="Markdown", reply_markup=buttons)
                 return
         
-        # Get live users from database
         try:
             query = text("""
                 SELECT username, last_live_at, total_lives, link
@@ -504,7 +507,6 @@ async def check_live_handler(session: Session, payload: dict):
             logger.error(f"Error fetching live users: {e}")
             live_users = []
             
-            # Better error handling - inform user
             error_msg = "⚠️ *Temporary Issue*\n\n"
             error_msg += "We're having trouble loading live streams right now.\n\n"
             error_msg += "💡 *What to do:*\n"
@@ -521,7 +523,6 @@ async def check_live_handler(session: Session, payload: dict):
                 ]
             }
             
-            # Refund the point if error occurred
             if not is_unlimited and page == 1:
                 user.points += 1
                 session.commit()
@@ -529,17 +530,15 @@ async def check_live_handler(session: Session, payload: dict):
             await helper.edit_message_text(chat_id, message_id, error_msg, parse_mode="Markdown", reply_markup=error_buttons)
             return
         
-        # Pagination setup
-        PER_PAGE = 10
+        PER_PAGE = 5
         total_users = len(live_users)
         total_pages = max(1, (total_users + PER_PAGE - 1) // PER_PAGE)
-        page = max(1, min(page, total_pages))  # Clamp page to valid range
+        page = max(1, min(page, total_pages))
         
         start_idx = (page - 1) * PER_PAGE
         end_idx = start_idx + PER_PAGE
         page_users = live_users[start_idx:end_idx]
         
-        # Format the live users message
         if live_users:
             live_message = "🔴 *LIVE NOW*\n"
             live_message += "━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -553,14 +552,15 @@ async def check_live_handler(session: Session, payload: dict):
                 username = user_data['username']
                 link = user_data.get('link', f"https://instagram.com/{username.lstrip('@')}")
                 total_lives = user_data.get('total_lives') or 0
+                last_live = user_data.get('last_live_at')
                 
-                # Add metadata
-                live_message += f"{idx}. 🔴 *[{username}]({link})*\n"
-                if total_lives and total_lives > 0:
-                    live_message += f"   📊 Total lives: {total_lives}\n"
+                live_message += create_stream_card(username, link, total_lives, last_live, start_idx + idx)
+                live_message += "\n\n"
         else:
             live_message = "🔴 *LIVE NOW*\n"
             live_message += "━━━━━━━━━━━━━━━━━━━━\n\n"
+            live_message += "     🌙\n"
+            live_message += "   ✨ 💤 ✨\n\n"
             live_message += "😴 *No one is live right now.*\n\n"
             if is_unlimited:
                 live_message += "💡 *What you can do:*\n"
@@ -573,14 +573,12 @@ async def check_live_handler(session: Session, payload: dict):
                 live_message += "  • Upgrade for instant notifications\n"
                 live_message += "  • Invite friends for bonus points\n"
         
-        # Calculate time until reset
         now_utc = datetime.now(timezone.utc)
         tomorrow_utc = (now_utc + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         time_until_reset = tomorrow_utc - now_utc
         hours = int(time_until_reset.total_seconds() // 3600)
         minutes = int((time_until_reset.total_seconds() % 3600) // 60)
         
-        # Add points/subscription info
         live_message += "\n━━━━━━━━━━━━━━━━━━━━\n"
         if is_unlimited:
             live_message += f"💎 *Status:* Premium (Unlimited)\n"
@@ -590,7 +588,6 @@ async def check_live_handler(session: Session, payload: dict):
         
         live_message += f"🔄 *Updated:* {datetime.now(timezone.utc).strftime('%I:%M %p UTC')}"
         
-        # Build pagination buttons
         button_rows = []
         
         if total_pages > 1:
@@ -609,18 +606,15 @@ async def check_live_handler(session: Session, payload: dict):
         
         buttons = {"inline_keyboard": button_rows}
         
-        # Edit the existing message instead of sending a new one
         try:
             await helper.edit_message_text(chat_id, message_id, live_message, parse_mode="Markdown", reply_markup=buttons)
             logger.info(f"User {user.id} checked live users page {page}/{total_pages}. Total: {total_users} live. Points: {user.points}")
         except Exception as e:
             logger.error(f"Error editing message: {e}")
-            # Fallback: send new message if edit fails
             try:
                 await helper.send_message(sender_id, live_message, parse_mode="Markdown", reply_markup=buttons)
             except Exception as e2:
                 logger.error(f"Error sending fallback message: {e2}")
-                # Last resort: simple error message
                 await helper.send_message(sender_id, "⚠️ An error occurred. Please try /start to restart the bot.")
 
     except Exception as e:
@@ -630,7 +624,7 @@ async def check_live_handler(session: Session, payload: dict):
 
 
 async def referrals_handler(session: Session, payload: dict):
-    """Displays referral information and link."""
+    """Displays referral information with animated progress bar."""
     try:
         callback_query = payload.get('callback_query', {})
         from_user = callback_query.get('from', {})
@@ -650,7 +644,6 @@ async def referrals_handler(session: Session, payload: dict):
             await send_user_feedback(sender_id, "❌ Please use /start first to register.")
             return
 
-        # Count referrals
         referral_count = session.query(TelegramUser).filter_by(referred_by_id=user.id).count()
         
         referral_text = "🎁 *REFERRALS*\n"
@@ -659,12 +652,12 @@ async def referrals_handler(session: Session, payload: dict):
         referral_text += f"👥 *Total Referrals:* {referral_count}\n"
         referral_text += f"💰 *Points Earned:* {referral_count * 5}\n\n"
         
-        # Progress to free premium
         if referral_count < 30:
-            progress = min(referral_count, 30)
-            progress_bar = "█" * (progress // 3) + "░" * (10 - progress // 3)
+            progress_bar = get_animated_progress_bar(referral_count, 30, 15)
+            percentage = int((referral_count / 30) * 100)
             referral_text += f"🎯 *Progress to Free Premium:*\n"
-            referral_text += f"   [{progress_bar}] {referral_count}/30\n\n"
+            referral_text += f"[{progress_bar}] {percentage}%\n"
+            referral_text += f"*{referral_count}/30* referrals\n\n"
         else:
             referral_text += "🏆 *Achievement Unlocked!*\n"
             referral_text += "   You've earned free premium! 🎉\n\n"
@@ -686,12 +679,8 @@ async def referrals_handler(session: Session, payload: dict):
         
         buttons = {
             "inline_keyboard": [
-                [
-                    {"text": "📤 Share Link", "url": f"https://t.me/share/url?url={referral_link}&text=Join me on IGLiveZBot!"}
-                ],
-                [
-                    {"text": "⬅️ Back to Menu", "callback_data": "back"}
-                ]
+                [{"text": "📤 Share Link", "url": f"https://t.me/share/url?url={referral_link}&text=Join me on IGLiveZBot!"}],
+                [{"text": "⬅️ Back to Menu", "callback_data": "back"}]
             ]
         }
         try:
@@ -756,12 +745,8 @@ async def help_handler(session: Session, payload: dict):
         
         buttons = {
             "inline_keyboard": [
-                [
-                    {"text": "💬 Join Support Group", "url": REQUIRED_GROUP_URL}
-                ],
-                [
-                    {"text": "⬅️ Back to Menu", "callback_data": "back"}
-                ]
+                [{"text": "💬 Join Support Group", "url": REQUIRED_GROUP_URL}],
+                [{"text": "⬅️ Back to Menu", "callback_data": "back"}]
             ]
         }
         try:
@@ -824,12 +809,8 @@ async def settings_handler(session: Session, payload: dict):
 
         buttons = {
             "inline_keyboard": [
-                [
-                    {"text": "🌍 Change Language", "callback_data": "lang:select"}
-                ],
-                [
-                    {"text": "⬅️ Back to Menu", "callback_data": "back"}
-                ]
+                [{"text": "🌍 Change Language", "callback_data": "lang:select"}],
+                [{"text": "⬅️ Back to Menu", "callback_data": "back"}]
             ]
         }
         try:
@@ -858,7 +839,6 @@ async def set_initial_language_handler(session: Session, payload: dict):
         if not sender_id:
             return
 
-        # Extract language code from callback_data (format: "setlang:en")
         lang_code = callback_data.split(':')[1] if ':' in callback_data else 'en'
 
         user = session.query(TelegramUser).filter_by(id=sender_id).first()
@@ -867,9 +847,8 @@ async def set_initial_language_handler(session: Session, payload: dict):
             session.commit()
             logger.info(f"User {user.id} set initial language to {lang_code}")
 
-        # Send main menu with selected language
         prefix_message = get_text('language_set', lang_code) + "\n\n"
-        await send_main_menu(sender_id, prefix_message, username, lang_code)
+        await send_main_menu(sender_id, prefix_message, username, lang_code, session)
 
     except Exception as e:
         logger.error(f"Error in set_initial_language_handler: {e}", exc_info=True)
@@ -896,13 +875,11 @@ async def change_language_handler(session: Session, payload: dict):
             await send_user_feedback(sender_id, "❌ Please use /start first to register.")
             return
 
-        # If callback is "lang:select", show language selection menu
         if callback_data == "lang:select":
             lang_text = "🌍 *SELECT LANGUAGE*\n"
             lang_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
             lang_text += "Choose your preferred language:"
 
-            # Create language selection buttons (2 per row)
             lang_buttons = []
             languages = list(LANGUAGE_NAMES.items())
             for i in range(0, len(languages), 2):
@@ -926,13 +903,11 @@ async def change_language_handler(session: Session, payload: dict):
                 except:
                     await helper.send_message(sender_id, "⚠️ Error loading languages. Please try /start")
         else:
-            # Extract language code and update
             lang_code = callback_data.split(':')[1] if ':' in callback_data else user.language
             user.language = lang_code
             session.commit()
             logger.info(f"User {user.id} changed language to {lang_code}")
 
-            # Show confirmation and return to settings
             confirm_text = get_text('language_changed', lang_code) + "\n\n"
             confirm_text += "⚙️ *SETTINGS*\n"
             confirm_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -941,12 +916,8 @@ async def change_language_handler(session: Session, payload: dict):
 
             buttons = {
                 "inline_keyboard": [
-                    [
-                        {"text": get_text('change_language', lang_code), "callback_data": "lang:select"}
-                    ],
-                    [
-                        {"text": get_text('back', lang_code), "callback_data": "back"}
-                    ]
+                    [{"text": get_text('change_language', lang_code), "callback_data": "lang:select"}],
+                    [{"text": get_text('back', lang_code), "callback_data": "back"}]
                 ]
             }
             try:
@@ -994,7 +965,6 @@ async def broadcast_message_handler(session: Session, payload: dict):
             logger.warning("No message text provided for broadcast.")
             return
 
-        # Get all users
         users = session.query(TelegramUser).all()
         helper = TelegramHelper()
         
@@ -1005,7 +975,7 @@ async def broadcast_message_handler(session: Session, payload: dict):
             try:
                 await helper.send_message(user.id, message_text, parse_mode="Markdown")
                 success_count += 1
-                await asyncio.sleep(0.05)  # Rate limiting
+                await asyncio.sleep(0.05)
             except Exception as e:
                 logger.error(f"Failed to send broadcast to user {user.id}: {e}")
                 fail_count += 1
@@ -1018,7 +988,7 @@ async def broadcast_message_handler(session: Session, payload: dict):
 
 
 async def init_handler(session: Session, payload: dict):
-    """Handles /init command (placeholder for future use)."""
+    """Handles /init command."""
     try:
         message = payload.get('message', {})
         from_user = message.get('from', {})
@@ -1036,7 +1006,7 @@ async def init_handler(session: Session, payload: dict):
 
 
 async def activate_handler(session: Session, payload: dict):
-    """Handles /activate command (placeholder for future use)."""
+    """Handles /activate command."""
     try:
         message = payload.get('message', {})
         from_user = message.get('from', {})
