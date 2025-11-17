@@ -38,7 +38,18 @@ async def buy_handler(session: Session, payload: dict):
 
         helper = TelegramHelper()
         
-        buy_text = "⭐ *BUY POINTS & PREMIUM*\n"
+        # Check if user is premium
+        user = session.query(TelegramUser).filter_by(id=sender_id).first()
+        is_premium = False
+        if user and user.subscription_end:
+            now_utc = datetime.now(timezone.utc)
+            sub_end = user.subscription_end if user.subscription_end.tzinfo else user.subscription_end.replace(tzinfo=timezone.utc)
+            is_premium = sub_end > now_utc
+        
+        if is_premium:
+            buy_text = "🔄 *RENEW PREMIUM*\n"
+        else:
+            buy_text = "⭐ *BUY POINTS & PREMIUM*\n"
         buy_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
         buy_text += "💎 *Points Packages:*\n"
         buy_text += "  • 50 Points - ⭐ 50 Stars\n"

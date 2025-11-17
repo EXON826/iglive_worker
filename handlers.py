@@ -93,24 +93,40 @@ async def send_main_menu(user_id: int, prefix_message: str = "", username: str =
         menu_text += f"     {get_text('refer_earn_desc', lang)}\n\n"
         menu_text += get_text('choose_option', lang)
 
-        buttons = {
-            "inline_keyboard": [
-                [
-                    {"text": get_text('check_live', lang), "callback_data": "check_live"}
-                ],
-                [
-                    {"text": get_text('my_account', lang), "callback_data": "my_account"},
-                    {"text": get_text('referrals', lang), "callback_data": "referrals"}
-                ],
-                [
-                    {"text": "⭐ Buy Premium", "callback_data": "buy"}
-                ],
-                [
-                    {"text": get_text('help', lang), "callback_data": "help"},
-                    {"text": get_text('settings', lang), "callback_data": "settings"}
-                ]
+        # Check if user is premium to customize buttons
+        is_premium = False
+        if session:
+            try:
+                user = session.query(TelegramUser).filter_by(id=user_id).first()
+                if user and user.subscription_end:
+                    now_utc = datetime.now(timezone.utc)
+                    sub_end = user.subscription_end if user.subscription_end.tzinfo else user.subscription_end.replace(tzinfo=timezone.utc)
+                    is_premium = sub_end > now_utc
+            except:
+                pass
+
+        # Build buttons based on premium status
+        button_rows = [
+            [
+                {"text": get_text('check_live', lang), "callback_data": "check_live"}
+            ],
+            [
+                {"text": get_text('my_account', lang), "callback_data": "my_account"},
+                {"text": get_text('referrals', lang), "callback_data": "referrals"}
             ]
-        }
+        ]
+        
+        if is_premium:
+            button_rows.append([{"text": "🔄 Renew Premium", "callback_data": "buy"}])
+        else:
+            button_rows.append([{"text": "⭐ Buy Premium", "callback_data": "buy"}])
+        
+        button_rows.append([
+            {"text": get_text('help', lang), "callback_data": "help"},
+            {"text": get_text('settings', lang), "callback_data": "settings"}
+        ])
+        
+        buttons = {"inline_keyboard": button_rows}
         
         helper = TelegramHelper()
         await helper.send_message(user_id, menu_text, parse_mode="Markdown", reply_markup=buttons)
@@ -327,21 +343,39 @@ async def my_account_handler(session: Session, payload: dict):
             account_text += "  • No daily limits\n"
             account_text += "  • Priority features\n"
         
-        account_text += "\n💡 *Tip:* Refer friends to earn bonus points!"
+        if not is_unlimited:
+            account_text += "\n💡 *Tip:* Refer friends to earn bonus points!"
+        else:
+            account_text += "\n✨ *Enjoying Premium?* Share with friends!"
         
-        buttons = {
-            "inline_keyboard": [
-                [
-                    {"text": "⭐ Buy Points/Premium", "callback_data": "buy"}
-                ],
-                [
-                    {"text": "🎁 Get Referral Link", "callback_data": "referrals"}
-                ],
-                [
-                    {"text": "⬅️ Back to Menu", "callback_data": "back"}
+        if is_unlimited:
+            buttons = {
+                "inline_keyboard": [
+                    [
+                        {"text": "🔄 Renew Premium", "callback_data": "buy"}
+                    ],
+                    [
+                        {"text": "🎁 Get Referral Link", "callback_data": "referrals"}
+                    ],
+                    [
+                        {"text": "⬅️ Back to Menu", "callback_data": "back"}
+                    ]
                 ]
-            ]
-        }
+            }
+        else:
+            buttons = {
+                "inline_keyboard": [
+                    [
+                        {"text": "⭐ Buy Points/Premium", "callback_data": "buy"}
+                    ],
+                    [
+                        {"text": "🎁 Get Referral Link", "callback_data": "referrals"}
+                    ],
+                    [
+                        {"text": "⬅️ Back to Menu", "callback_data": "back"}
+                    ]
+                ]
+            }
         
         # Edit the existing message instead of sending a new one
         try:
@@ -528,10 +562,16 @@ async def check_live_handler(session: Session, payload: dict):
             live_message = "🔴 *LIVE NOW*\n"
             live_message += "━━━━━━━━━━━━━━━━━━━━\n\n"
             live_message += "😴 *No one is live right now.*\n\n"
-            live_message += "💡 *What you can do:*\n"
-            live_message += "  • Check back in a few minutes\n"
-            live_message += "  • Upgrade for instant notifications\n"
-            live_message += "  • Invite friends for bonus points\n"
+            if is_unlimited:
+                live_message += "💡 *What you can do:*\n"
+                live_message += "  • Check back in a few minutes\n"
+                live_message += "  • Streams are tracked 24/7\n"
+                live_message += "  • Share with friends\n"
+            else:
+                live_message += "💡 *What you can do:*\n"
+                live_message += "  • Check back in a few minutes\n"
+                live_message += "  • Upgrade for instant notifications\n"
+                live_message += "  • Invite friends for bonus points\n"
         
         # Calculate time until reset
         now_utc = datetime.now(timezone.utc)
@@ -701,7 +741,7 @@ async def help_handler(session: Session, payload: dict):
         help_text += "   Check points & subscription\n\n"
         
         help_text += "🎁 *Referrals* - Earn bonus points\n"
-        help_text += "   +10 points per friend\n\n"
+        help_text += "   +5 points per friend\n\n"
         
         help_text += "━━━━━━━━━━━━━━━━━━━━\n\n"
         
