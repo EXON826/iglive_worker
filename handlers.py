@@ -931,7 +931,7 @@ async def set_initial_language_handler(session: Session, payload: dict):
 
 
 async def clear_notifications_handler(session: Session, payload: dict):
-    """Clears all notification messages for the user."""
+    """Clears all notification messages for the user. TEMPORARILY DISABLED."""
     try:
         callback_query = payload.get('callback_query', {})
         from_user = callback_query.get('from', {})
@@ -945,46 +945,18 @@ async def clear_notifications_handler(session: Session, payload: dict):
 
         helper = TelegramHelper()
         
-        # Validate user has permission to clear messages in this chat
-        if chat_id != sender_id:
-            error_msg = "❌ You can only clear notifications in private chat."
-            try:
-                await helper.edit_message_text(chat_id, message_id, error_msg, parse_mode="Markdown")
-            except:
-                pass
-            return
+        # TEMPORARILY DISABLED - Function was causing 30+ second delays
+        info_msg = "ℹ️ *Clear function temporarily disabled*\n\nThis feature is being optimized for better performance."
         
-        # Show loading message
         try:
-            await helper.edit_message_text(chat_id, message_id, "🗑️ *Clearing notifications...*\n\nPlease wait.", parse_mode="Markdown")
+            await helper.edit_message_text(chat_id, message_id, info_msg, parse_mode="Markdown")
         except:
             pass
         
-        # Clear recent messages (last 100 messages)
-        cleared_count = 0
-        for i in range(1, 101):
-            try:
-                await helper.delete_message(chat_id, message_id - i)
-                cleared_count += 1
-            except:
-                pass  # Message doesn't exist or can't be deleted
-        
-        # Show result only
-        result_text = f"✅ *Cleared {cleared_count} messages!*"
-        
-        try:
-            await helper.edit_message_text(chat_id, message_id, result_text, parse_mode="Markdown")
-        except:
-            pass
-        
-        logger.info(f"User {sender_id} cleared {cleared_count} notification messages")
+        logger.info(f"User {sender_id} attempted to clear notifications (function disabled)")
 
     except Exception as e:
         logger.error(f"Error in clear_notifications_handler: {e}", exc_info=True)
-        try:
-            await settings_handler(session, payload)
-        except:
-            pass
 
 
 async def toggle_notifications_handler(session: Session, payload: dict):
