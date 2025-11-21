@@ -163,3 +163,10 @@ class StarPayment(Base):
     created_at = Column(DateTime, default=datetime.now, nullable=False)
     completed_at = Column(DateTime)
     user = relationship("TelegramUser")
+
+class LiveNotificationMessage(Base):
+    __tablename__ = 'live_notification_messages'
+    username = Column(Text, primary_key=True)
+    group_id = Column(Text, primary_key=True)
+    message_id = Column(BIGINT, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)

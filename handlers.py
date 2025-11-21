@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from models import TelegramUser, ChatGroup
+from models import TelegramUser, ChatGroup, LiveNotificationMessage
 from telegram_helper import TelegramHelper
 from translations import get_text, detect_language, LANGUAGE_NAMES
 from smart_notifications import send_referral_milestone_notification
@@ -1170,6 +1170,34 @@ async def activate_handler(session: Session, payload: dict):
         raise
 
 
+async def delete_previous_live_notifications(session: Session, helper: TelegramHelper, username: str):
+    """Delete previous live notification messages for a username."""
+    try:
+        previous_messages = session.query(LiveNotificationMessage).filter_by(username=username).all()
+        for msg in previous_messages:
+            try:
+                await helper.delete_message(msg.group_id, msg.message_id)
+            except:
+                pass
+        session.query(LiveNotificationMessage).filter_by(username=username).delete()
+        session.commit()
+    except Exception as e:
+        logger.error(f"Error deleting previous notifications for {username}: {e}")
+
+async def save_live_notification_message(session: Session, username: str, group_id: str, message_id: int):
+    """Save live notification message ID for tracking."""
+    try:
+        existing = session.query(LiveNotificationMessage).filter_by(username=username, group_id=group_id).first()
+        if existing:
+            existing.message_id = message_id
+            existing.created_at = datetime.now()
+        else:
+            new_msg = LiveNotificationMessage(username=username, group_id=group_id, message_id=message_id)
+            session.add(new_msg)
+        session.commit()
+    except Exception as e:
+        logger.error(f"Error saving notification message: {e}")
+
 async def notify_live_handler(session: Session, payload: dict):
     """Send live notifications to premium users."""
     try:
@@ -1180,7 +1208,11 @@ async def notify_live_handler(session: Session, payload: dict):
             logger.error(f"Invalid notify_live payload: {payload}")
             return
         
-        now_utc = datetime.now(timezone.utc)
+        helper = TelegramHelper()
+        
+        # Delete previous notifications for this username
+        await delete_previous_live_notifications(session, helper, username)
+        
         query = text("""
             SELECT DISTINCT u.id, u.first_name, u.language 
             FROM telegram_users u
@@ -1198,7 +1230,6 @@ async def notify_live_handler(session: Session, payload: dict):
         
         logger.info(f"🔴 Notifying {len(premium_users)} premium users about {username}")
         
-        helper = TelegramHelper()
         success_count = 0
         
         for user_id, first_name, lang in premium_users:
@@ -1207,7 +1238,6 @@ async def notify_live_handler(session: Session, payload: dict):
                 notification += f"*{username}* just started streaming!\n\n"
                 notification += f"[Watch Now]({link})"
                 
-                # Add notification control buttons
                 buttons = {
                     "inline_keyboard": [[
                         {"text": "🔕 Turn OFF", "callback_data": "toggle_notifications"},
@@ -1215,7 +1245,11 @@ async def notify_live_handler(session: Session, payload: dict):
                     ]]
                 }
                 
-                await helper.send_message(user_id, notification, parse_mode="Markdown", reply_markup=buttons)
+                result = await helper.send_message(user_id, notification, parse_mode="Markdown", reply_markup=buttons)
+                if result and result.get('ok'):
+                    message_id = result['result']['message_id']
+                    await save_live_notification_message(session, username, str(user_id), message_id)
+                
                 success_count += 1
                 await asyncio.sleep(0.05)
             except Exception as e:
