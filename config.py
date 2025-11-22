@@ -39,5 +39,5 @@ ADMIN_IDS_STR = os.environ.get('ADMIN_IDS', '')
 ADMIN_IDS = [int(id.strip()) for id in ADMIN_IDS_STR.split(',') if id.strip().isdigit()]
 
 # Auto-Broadcast configuration
-AUTO_BROADCAST_THRESHOLD = int(os.environ.get('AUTO_BROADCAST_THRESHOLD', 10))
+AUTO_BROADCAST_THRESHOLD = int(os.environ.get('AUTO_BROADCAST_THRESHOLD', 7))
 AUTO_BROADCAST_COOLDOWN_HOURS = int(os.environ.get('AUTO_BROADCAST_COOLDOWN_HOURS', 24))
