@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from models import TelegramUser, ChatGroup, LiveNotificationMessage
+from models import TelegramUser, ChatGroup, LiveNotificationMessage, SystemSettings
 from telegram_helper import TelegramHelper
 from translations import get_text, detect_language, LANGUAGE_NAMES
 from smart_notifications import send_referral_milestone_notification
@@ -17,7 +17,8 @@ from config import (
     BOT_USERNAME, BOT_TOKEN, BOT_API_ID, BOT_API_HASH,
     REQUIRED_GROUP_URL, REQUIRED_GROUP_ID, REQUIRE_GROUP_MEMBERSHIP,
     LIVE_STREAMS_PER_PAGE, PREMIUM_VALIDITY_DAYS,
-    DEFAULT_DAILY_POINTS, REFERRAL_BONUS_POINTS, FREE_PREMIUM_REFERRAL_THRESHOLD
+    DEFAULT_DAILY_POINTS, REFERRAL_BONUS_POINTS, FREE_PREMIUM_REFERRAL_THRESHOLD,
+    ADMIN_IDS, AUTO_BROADCAST_THRESHOLD, AUTO_BROADCAST_COOLDOWN_HOURS
 )
 
 logger = logging.getLogger(__name__)
@@ -1104,6 +1105,70 @@ async def join_request_handler(session: Session, payload: dict):
         raise
 
 
+
+
+async def handle_broadcast_command(session: Session, payload: dict):
+    """Handles the /broadcast command for admins only."""
+    try:
+        message = payload.get('message', {})
+        from_user = message.get('from', {})
+        sender_id = from_user.get('id')
+        text = message.get('text', '').strip()
+        
+        if not sender_id:
+            logger.error("Could not determine sender_id from payload.")
+            return
+
+        # Check if user is admin
+        if sender_id not in ADMIN_IDS:
+            logger.warning(f"Unauthorized broadcast attempt from user {sender_id}")
+            await send_user_feedback(sender_id, "❌ You are not authorized to use this command.")
+            return
+
+        # Parse broadcast message (everything after /broadcast)
+        parts = text.split(maxsplit=1)
+        if len(parts) < 2:
+            await send_user_feedback(
+                sender_id, 
+                "ℹ️ *Broadcast Usage*\\n\\n"
+                "Send: `/broadcast your message here`\\n\\n"
+                "Your message will be sent to all users."
+            )
+            return
+        
+        broadcast_text = parts[1]
+        
+        # Create a job to broadcast the message
+        from models import Job
+        import json
+        
+        new_job = Job(
+            job_type='broadcast_message',
+            payload=json.dumps({'message': broadcast_text}),
+            status='pending'
+        )
+        session.add(new_job)
+        session.commit()
+        
+        # Count total users for feedback
+        total_users = session.query(TelegramUser).count()
+        
+        confirm_msg = f"📢 *Broadcast Queued!*\\n\\n"
+        confirm_msg += f"Message will be sent to *{total_users}* users.\\n\\n"
+        confirm_msg += f"_Preview:_\\n{broadcast_text[:100]}{'...' if len(broadcast_text) > 100 else ''}"
+        
+        await send_user_feedback(sender_id, confirm_msg)
+        logger.info(f"Admin {sender_id} queued broadcast to {total_users} users")
+
+    except Exception as e:
+        logger.error(f"Error in handle_broadcast_command: {e}", exc_info=True)
+        try:
+            await send_user_feedback(sender_id, "❌ Failed to queue broadcast. Check logs.")
+        except:
+            pass
+        raise
+
+
 async def broadcast_message_handler(session: Session, payload: dict):
     """Handles broadcasting messages to all users."""
     try:
@@ -1260,3 +1325,66 @@ async def notify_live_handler(session: Session, payload: dict):
     except Exception as e:
         logger.error(f"Error in notify_live_handler: {e}", exc_info=True)
         raise
+
+
+async def check_and_trigger_auto_broadcast(session: Session):
+    """
+    Checks if live stream count exceeds threshold and triggers an automated broadcast
+    if the cooldown period has passed.
+    """
+    try:
+        # 1. Check live count
+        live_count = session.execute(text("SELECT COUNT(*) FROM insta_links WHERE is_live = TRUE")).scalar()
+        
+        if live_count < AUTO_BROADCAST_THRESHOLD:
+            return
+
+        # 2. Check cooldown
+        last_broadcast_setting = session.query(SystemSettings).filter_by(key='last_auto_broadcast').first()
+        now = datetime.now(timezone.utc)
+        
+        if last_broadcast_setting and last_broadcast_setting.updated_at:
+            last_time = last_broadcast_setting.updated_at
+            if last_time.tzinfo is None:
+                last_time = last_time.replace(tzinfo=timezone.utc)
+            
+            # Calculate hours since last broadcast
+            hours_diff = (now - last_time).total_seconds() / 3600
+            
+            if hours_diff < AUTO_BROADCAST_COOLDOWN_HOURS:
+                # Cooldown active
+                return
+
+        # 3. Trigger Broadcast
+        logger.info(f"🔥 Triggering Auto-Broadcast! Live count: {live_count}")
+        
+        broadcast_text = f"🔥 *IT'S POPPING OFF!*\n\n"
+        broadcast_text += f"There are currently *{live_count}* models live right now! 📸\n\n"
+        broadcast_text += "Don't miss the action - check who's streaming!"
+        
+        # Create broadcast job
+        from models import Job
+        import json
+        
+        new_job = Job(
+            job_type='broadcast_message',
+            payload=json.dumps({'message': broadcast_text}),
+            status='pending'
+        )
+        session.add(new_job)
+        
+        # Update timestamp
+        if last_broadcast_setting:
+            last_broadcast_setting.updated_at = now
+            # Force update if value didn't change (though updated_at should handle it)
+            last_broadcast_setting.value = str(live_count) 
+        else:
+            new_setting = SystemSettings(key='last_auto_broadcast', value=str(live_count), updated_at=now)
+            session.add(new_setting)
+            
+        session.commit()
+        logger.info(f"Auto-broadcast queued successfully.")
+
+    except Exception as e:
+        logger.error(f"Error in check_and_trigger_auto_broadcast: {e}", exc_info=True)
+

@@ -17,6 +17,7 @@ from handlers import (
     check_live_handler,
     join_request_handler,
     broadcast_message_handler,
+    handle_broadcast_command,
     notify_live_handler,
     init_handler,
     activate_handler,
@@ -28,6 +29,7 @@ from handlers import (
     change_language_handler,
     toggle_notifications_handler,
     clear_notifications_handler,
+    check_and_trigger_auto_broadcast,
 )
 from rate_limiter import rate_limiter
 from payment_handlers import (
@@ -82,6 +84,8 @@ async def process_job(job, session_factory):
                         await init_handler(session, payload)
                     elif text.startswith('/activate'):
                         await activate_handler(session, payload)
+                    elif text.startswith('/broadcast'):
+                        await handle_broadcast_command(session, payload)
             elif 'callback_query' in payload:
                 # Rate limiting for button clicks
                 sender_id = payload['callback_query'].get('from', {}).get('id')
@@ -149,10 +153,19 @@ async def worker_main_loop(session_factory, run_once=False):
     - Updates the job status based on the result.
     """
     run_once_retries = 0
+    last_auto_broadcast_check = 0
+    AUTO_BROADCAST_CHECK_INTERVAL = 300  # 5 minutes
+
     while True:
         job_to_process = None
         session = session_factory()
         try:
+            # --- 0. Periodic Auto-Broadcast Check ---
+            current_time = time.time()
+            if current_time - last_auto_broadcast_check > AUTO_BROADCAST_CHECK_INTERVAL:
+                await check_and_trigger_auto_broadcast(session)
+                last_auto_broadcast_check = current_time
+
             # --- 1. Fetch and Lock a Job ---
             select_query = text("""
                 SELECT * FROM jobs
