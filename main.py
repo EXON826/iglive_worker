@@ -156,7 +156,7 @@ async def worker_main_loop(session_factory, run_once=False):
             # --- 1. Fetch and Lock a Job ---
             select_query = text("""
                 SELECT * FROM jobs
-                WHERE status = 'pending'
+                WHERE status = 'pending' AND job_type != 'send_to_groups'
                 ORDER BY created_at
                 LIMIT 1
                 FOR UPDATE SKIP LOCKED
