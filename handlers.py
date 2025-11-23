@@ -372,9 +372,15 @@ async def my_account_handler(session: Session, payload: dict):
             account_text += "╔═════════════╗\n"
             account_text += "  💎 PREMIUM USER  \n"
             account_text += "╚═════════════╝\n\n"
+            days_left = (sub_end - now_utc).days
+            hours_left = int((sub_end - now_utc).seconds / 3600)
+            
             account_text += f"✅ Unlimited Checks\n"
             account_text += f"📅 Premium Active\n"
-            account_text += f"⏳ Valid for 30 days from last payment\n"
+            if days_left > 0:
+                account_text += f"⏳ Valid for: {days_left}d {hours_left}h\n"
+            else:
+                account_text += f"⏳ Valid for: {hours_left}h {int(((sub_end - now_utc).seconds % 3600) / 60)}m\n"
         else:
             points_bar = get_animated_progress_bar(user.points, 3, 10)
             percentage = int((user.points / 3) * 100)

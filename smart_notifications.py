@@ -88,10 +88,19 @@ async def send_referral_milestone_notification(session: Session, user_id: int, r
             milestone_msg += f"Progress: [{referral_count}/30]"
         
         elif referral_count == 30:
+            # Grant 7 days premium automatically
+            now = datetime.now(timezone.utc)
+            if user.subscription_end and user.subscription_end.replace(tzinfo=timezone.utc) > now:
+                user.subscription_end = user.subscription_end.replace(tzinfo=timezone.utc) + timedelta(days=7)
+            else:
+                user.subscription_end = now + timedelta(days=7)
+            
+            session.commit()
+
             milestone_msg = "🏆 *ACHIEVEMENT UNLOCKED!*\n\n"
             milestone_msg += "30 REFERRALS COMPLETED! 🎉🎉🎉\n\n"
-            milestone_msg += "You've earned FREE 7-day Premium!\n\n"
-            milestone_msg += "Contact support to claim your reward! 💎"
+            milestone_msg += "🎁 *Reward Applied:* 7 Days Free Premium has been added to your account!\n\n"
+            milestone_msg += "Enjoy unlimited checks! 💎"
         
         if milestone_msg:
             try:
