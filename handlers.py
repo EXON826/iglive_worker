@@ -2,6 +2,23 @@
 # Enhanced UI/UX version with animated progress bars, card-style formatting, and loading states
 
 import os
+import logging
+import asyncio
+from datetime import datetime, timezone, timedelta
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+
+from models import (
+    TelegramUser, InstaLink, ChatGroup, UserActivity, 
+    Job, Referral, PointsTransaction, StarPayment,
+    LiveNotificationMessage, SystemSettings, EphemeralMessage
+)
+from telegram_helper import TelegramHelper
+from translations import get_text, detect_language, LANGUAGE_NAMES
+from smart_notifications import send_referral_milestone_notification
+from rate_limiter import rate_limiter
+from config import (
+    BOT_USERNAME, BOT_TOKEN, BOT_API_ID, BOT_API_HASH,
     REQUIRED_GROUP_URL, REQUIRED_GROUP_ID, REQUIRE_GROUP_MEMBERSHIP,
     LIVE_STREAMS_PER_PAGE, PREMIUM_VALIDITY_DAYS,
     DEFAULT_DAILY_POINTS, REFERRAL_BONUS_POINTS, FREE_PREMIUM_REFERRAL_THRESHOLD,
