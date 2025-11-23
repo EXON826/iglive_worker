@@ -487,24 +487,6 @@ async def check_live_handler(session: Session, payload: dict):
             
         # Apply rate limiting to actual live check logic
         if not rate_limiter.is_allowed(sender_id, 'live_check_logic'):
-            reset_time = rate_limiter.get_reset_time(sender_id, 'live_check_logic')
-            error_msg = f"⚠️ *Too many requests!*\n\nPlease wait {reset_time} seconds before checking again."
-            try:
-                await helper.edit_message_text(chat_id, message_id, error_msg, parse_mode="Markdown")
-            except:
-                pass
-            return
-            
-        if not is_unlimited and page == 1:
-            if user.points > 0:
-                user.points -= 1
-                session.commit()
-                
-                if user.points == 1:
-                    tip_msg = "⚠️ *Low Points Alert!*\n\n"
-                    tip_msg += "You have only *1 point* left today.\n\n"
-                    tip_msg += "💡 *Quick tip:* Refer a friend to get +5 points instantly!\n\n"
-                    tip_msg += "Or upgrade to Premium for unlimited checks."
                     
                     tip_buttons = {
                         "inline_keyboard": [
