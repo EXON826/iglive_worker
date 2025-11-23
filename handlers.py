@@ -2,19 +2,6 @@
 # Enhanced UI/UX version with animated progress bars, card-style formatting, and loading states
 
 import os
-import logging
-import asyncio
-from datetime import datetime, timezone, timedelta
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-
-from models import TelegramUser, ChatGroup, LiveNotificationMessage, SystemSettings
-from telegram_helper import TelegramHelper
-from translations import get_text, detect_language, LANGUAGE_NAMES
-from smart_notifications import send_referral_milestone_notification
-from rate_limiter import rate_limiter
-from config import (
-    BOT_USERNAME, BOT_TOKEN, BOT_API_ID, BOT_API_HASH,
     REQUIRED_GROUP_URL, REQUIRED_GROUP_ID, REQUIRE_GROUP_MEMBERSHIP,
     LIVE_STREAMS_PER_PAGE, PREMIUM_VALIDITY_DAYS,
     DEFAULT_DAILY_POINTS, REFERRAL_BONUS_POINTS, FREE_PREMIUM_REFERRAL_THRESHOLD,
@@ -1187,7 +1174,7 @@ async def broadcast_message_handler(session: Session, payload: dict):
             try:
                 await helper.send_message(user.id, message_text, parse_mode="Markdown")
                 success_count += 1
-                await asyncio.sleep(0.05)
+                await asyncio.sleep(0.2)
             except Exception as e:
                 logger.error(f"Failed to send broadcast to user {user.id}: {e}")
                 fail_count += 1
@@ -1309,21 +1296,6 @@ async def notify_live_handler(session: Session, payload: dict):
                         {"text": "🗑️ Clear All", "callback_data": "clear_notifications"}
                     ]]
                 }
-                
-                result = await helper.send_message(user_id, notification, parse_mode="Markdown", reply_markup=buttons)
-                if result and result.get('ok'):
-                    message_id = result['result']['message_id']
-                    await save_live_notification_message(session, username, str(user_id), message_id)
-                
-                success_count += 1
-                await asyncio.sleep(0.05)
-            except Exception as e:
-                logger.error(f"Failed to notify user {user_id}: {e}")
-        
-        logger.info(f"✅ Sent {success_count}/{len(premium_users)} notifications for {username}")
-        
-    except Exception as e:
-        logger.error(f"Error in notify_live_handler: {e}", exc_info=True)
         raise
 
 

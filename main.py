@@ -38,6 +38,8 @@ from payment_handlers import (
     pre_checkout_handler,
     successful_payment_handler,
 )
+from models import EphemeralMessage
+from telegram_helper import TelegramHelper
 
 # --- Enhanced Logging Setup ---
 from logging_config import setup_production_logging
@@ -160,13 +162,16 @@ async def worker_main_loop(session_factory, run_once=False):
         job_to_process = None
         session = session_factory()
         try:
-            # --- 0. Periodic Auto-Broadcast Check ---
+            # 0. Process Ephemeral Deletions (Auto-Delete)
+            await process_ephemeral_deletions(session)
+
+            # --- 1. Periodic Auto-Broadcast Check ---
             current_time = time.time()
             if current_time - last_auto_broadcast_check > AUTO_BROADCAST_CHECK_INTERVAL:
                 await check_and_trigger_auto_broadcast(session)
                 last_auto_broadcast_check = current_time
 
-            # --- 1. Fetch and Lock a Job ---
+            # --- 2. Fetch and Lock a Job ---
             select_query = text("""
                 SELECT * FROM jobs
                 WHERE status = 'pending' 
