@@ -535,7 +535,94 @@ async def check_live_handler(session: Session, payload: dict):
                     "inline_keyboard": [
                         [{"text": "🌟 Upgrade Now", "callback_data": "buy"}],
                         [{"text": "🎁 Get Referral Link", "callback_data": "referrals"}],
-            live_message += "😴 *No one is live right now.*\n\n"
+                        [{"text": "⬅️ Back", "callback_data": "back"}]
+                    ]
+                }
+                
+                logger.info(f"User {user.id} has no points left.")
+                await helper.send_message(sender_id, no_points_msg, parse_mode="Markdown", reply_markup=buttons)
+                return
+        
+        try:
+            query = text("""
+                SELECT username, last_live_at, total_lives, link, viewer_count
+                FROM insta_links
+                WHERE is_live = TRUE
+                ORDER BY last_live_at DESC
+            """)
+            result = session.execute(query).fetchall()
+            
+            live_users = []
+            for row in result:
+                live_users.append({
+                    'username': row[0],
+                    'last_live_at': row[1],
+                    'total_lives': row[2],
+                    'link': row[3],
+                    'viewer_count': row[4] if len(row) > 4 else 0
+                })
+        except Exception as e:
+            logger.error(f"Error fetching live users: {e}")
+            live_users = []
+            
+            error_msg = "⚠️ *Temporary Issue*\n\n"
+            error_msg += "We're having trouble loading live streams right now.\n\n"
+            error_msg += "💡 *What to do:*\n"
+            error_msg += "  • Try again in a moment\n"
+            error_msg += "  • Check your internet connection\n"
+            error_msg += "  • Contact support if this persists\n\n"
+            error_msg += "_Your points have not been deducted._"
+            
+            error_buttons = {
+                "inline_keyboard": [
+                    [{"text": "🔄 Try Again", "callback_data": "check_live"}],
+                    [{"text": "💬 Contact Support", "url": REQUIRED_GROUP_URL}],
+                    [{"text": "⬅️ Back", "callback_data": "back"}]
+                ]
+            }
+            
+            # Only refund points if they were deducted (page 1 and not premium)
+            if not is_unlimited and page == 1 and user.points < 3:
+                user.points += 1
+                session.commit()
+            
+            await helper.edit_message_text(chat_id, message_id, error_msg, parse_mode="Markdown", reply_markup=error_buttons)
+            return
+        
+        PER_PAGE = LIVE_STREAMS_PER_PAGE
+        total_users = len(live_users)
+        total_pages = max(1, (total_users + PER_PAGE - 1) // PER_PAGE)
+        page = max(1, min(page, total_pages))
+        
+        start_idx = (page - 1) * PER_PAGE
+        end_idx = start_idx + PER_PAGE
+        page_users = live_users[start_idx:end_idx]
+        
+        if live_users:
+            msg_text = f"🔴 *LIVE NOW ({total_users})*\n\n"
+            
+            if total_pages > 1:
+                msg_text += f"📄 Page {page}/{total_pages}\n\n"
+            
+            for i, u in enumerate(page_users, start=start_idx + 1):
+                link_text = md_link(f"Watch {u['username']}", u['link'])
+                time_ago = get_relative_time(u['last_live_at'])
+                
+                # Add viewer count if available and > 0
+                viewer_info = ""
+                if u.get('viewer_count') and u['viewer_count'] > 0:
+                    viewer_info = f" • 👁️ {u['viewer_count']}"
+                
+                msg_text += f"{i}. {link_text}\n"
+                msg_text += f"   └ ⏱️ {time_ago}{viewer_info}\n\n"
+            
+            msg_text += "──────────────────\n"
+            live_message = msg_text
+        else:
+            live_message = "🔴 *LIVE NOW*\n"
+            live_message += "━━━━━━━━━━━━━━━━━━━━\n\n"
+            live_message += "     🌙\n"
+            live_message += "   ✨ 💤 ✨\n\n"
             if is_unlimited:
                 live_message += "💡 *What you can do:*\n"
                 live_message += "  • Check back in a few minutes\n"
