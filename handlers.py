@@ -535,20 +535,6 @@ async def check_live_handler(session: Session, payload: dict):
                     "inline_keyboard": [
                         [{"text": "🌟 Upgrade Now", "callback_data": "buy"}],
                         [{"text": "🎁 Get Referral Link", "callback_data": "referrals"}],
-                        [{"text": "⬅️ Back", "callback_data": "back"}]
-                    ]
-                }
-                
-                logger.info(f"User {user.id} has no points left.")
-                last_live = user_data.get('last_live_at')
-                
-                live_message += create_stream_card(username, link, total_lives, last_live, idx)
-                live_message += "\n\n"
-        else:
-            live_message = "🔴 *LIVE NOW*\n"
-            live_message += "━━━━━━━━━━━━━━━━━━━━\n\n"
-            live_message += "     🌙\n"
-            live_message += "   ✨ 💤 ✨\n\n"
             live_message += "😴 *No one is live right now.*\n\n"
             if is_unlimited:
                 live_message += "💡 *What you can do:*\n"
