@@ -1313,6 +1313,32 @@ async def notify_live_handler(session: Session, payload: dict):
                         {"text": "🗑️ Clear All", "callback_data": "clear_notifications"}
                     ]]
                 }
+                result = await helper.send_message(user_id, notification, parse_mode="Markdown", reply_markup=buttons)
+                if result and result.get('ok'):
+                    msg_id = result['result']['message_id']
+                    success_count += 1
+                    
+                    # Schedule auto-delete
+                    try:
+                        delete_time = datetime.now(timezone.utc) + timedelta(minutes=5)
+                        ephemeral = EphemeralMessage(
+                            chat_id=user_id,
+                            message_id=msg_id,
+                            delete_at=delete_time
+                        )
+                        session.add(ephemeral)
+                    except Exception as e:
+                        logger.error(f"Failed to schedule deletion for {user_id}: {e}")
+
+                await asyncio.sleep(0.2)
+            except Exception as e:
+                logger.error(f"Failed to notify user {user_id}: {e}")
+        
+        session.commit()
+        logger.info(f"✅ Sent {success_count}/{len(premium_users)} notifications for {username}")
+        
+    except Exception as e:
+        logger.error(f"Error in notify_live_handler: {e}", exc_info=True)
         raise
 
 
