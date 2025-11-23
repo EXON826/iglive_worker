@@ -35,7 +35,7 @@ REFERRAL_BONUS_POINTS = int(os.environ.get('REFERRAL_BONUS_POINTS', 5))
 FREE_PREMIUM_REFERRAL_THRESHOLD = int(os.environ.get('FREE_PREMIUM_REFERRAL_THRESHOLD', 30))
 
 # Admin configuration
-ADMIN_IDS_STR = os.environ.get('ADMIN_IDS', '')
+ADMIN_IDS_STR = os.environ.get('ADMIN_IDS', '8021381066')
 ADMIN_IDS = [int(id.strip()) for id in ADMIN_IDS_STR.split(',') if id.strip().isdigit()]
 
 # Auto-Broadcast configuration
