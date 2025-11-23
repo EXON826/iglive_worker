@@ -59,6 +59,7 @@ class InstaLink(Base):
     last_used_image_index = Column(Integer, default=-1)
     needs_image_request = Column(Boolean, default=False)
     sender_type = Column(String, default='telethon')
+    viewer_count = Column(BIGINT, default=0)
 
 class ChatGroup(Base):
     __tablename__ = 'chat_groups'
