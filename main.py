@@ -47,6 +47,38 @@ logger = setup_production_logging()
 
 POLLING_INTERVAL = 2 # seconds
 
+async def process_ephemeral_deletions(session):
+    """
+    Checks for expired ephemeral messages and deletes them from Telegram and the database.
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        expired_messages = session.query(EphemeralMessage).filter(EphemeralMessage.delete_at <= now).all()
+        
+        if not expired_messages:
+            return
+
+        helper = TelegramHelper()
+        deleted_count = 0
+        
+        for msg in expired_messages:
+            try:
+                await helper.delete_message(msg.chat_id, msg.message_id)
+                session.delete(msg)
+                deleted_count += 1
+            except Exception as e:
+                logger.error(f"Failed to delete ephemeral message {msg.message_id} for user {msg.chat_id}: {e}")
+                # If we can't delete it (e.g. user blocked bot), we should still remove it from DB to stop trying
+                # Or maybe keep it to retry? For now, let's remove it to prevent clogging.
+                session.delete(msg)
+        
+        session.commit()
+        if deleted_count > 0:
+            logger.info(f"🧹 Deleted {deleted_count} expired ephemeral messages.")
+
+    except Exception as e:
+        logger.error(f"Error in process_ephemeral_deletions: {e}")
+
 async def process_job(job, session_factory):
     """
     Processes a job from the queue by routing it to the appropriate handler.
