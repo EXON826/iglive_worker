@@ -38,6 +38,12 @@ from payment_handlers import (
     pre_checkout_handler,
     successful_payment_handler,
 )
+from promotional_handlers import (
+    promote_command_handler,
+    promote_callback_handler,
+    promote_content_handler,
+    execute_broadcast_job
+)
 from models import EphemeralMessage
 from telegram_helper import TelegramHelper
 
@@ -120,6 +126,15 @@ async def process_job(job, session_factory):
                         await activate_handler(session, payload)
                     elif text.startswith('/broadcast'):
                         await handle_broadcast_command(session, payload)
+                    elif text.startswith('/promote'):
+                        await promote_command_handler(session, payload)
+                    else:
+                        # Check if it's wizard content (text)
+                        await promote_content_handler(session, payload)
+                
+                # Handle media messages for wizard
+                if 'photo' in payload['message'] or 'video' in payload['message']:
+                     await promote_content_handler(session, payload)
             elif 'callback_query' in payload:
                 # Rate limiting for button clicks
                 sender_id = payload['callback_query'].get('from', {}).get('id')
@@ -152,6 +167,8 @@ async def process_job(job, session_factory):
                     await toggle_notifications_handler(session, payload)
                 elif callback_data == 'clear_notifications':
                     await clear_notifications_handler(session, payload)
+                elif callback_data.startswith('promote:'):
+                    await promote_callback_handler(session, payload)
                 else:
                     logger.info(f"No handler for callback_data: '{callback_data}'")
             elif 'pre_checkout_query' in payload:
@@ -163,7 +180,10 @@ async def process_job(job, session_factory):
                 logger.info(f"No handler for this update type.")
         
         elif job_type == 'broadcast_message':
-            await broadcast_message_handler(session, payload)
+            if 'content' in payload:
+                await execute_broadcast_job(session, payload)
+            else:
+                await broadcast_message_handler(session, payload)
 
         elif job_type == 'notify_live':
             await notify_live_handler(session, payload)
