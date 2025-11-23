@@ -605,16 +605,18 @@ async def check_live_handler(session: Session, payload: dict):
                 msg_text += f"📄 Page {page}/{total_pages}\n\n"
             
             for i, u in enumerate(page_users, start=start_idx + 1):
-                link_text = md_link(f"Watch {u['username']}", u['link'])
-                time_ago = get_relative_time(u['last_live_at'])
+                # Use the helper function for consistent card style
+                card = create_stream_card(u['username'], u['link'], u['total_lives'], u['last_live_at'], i)
                 
                 # Add viewer count if available and > 0
-                viewer_info = ""
                 if u.get('viewer_count') and u['viewer_count'] > 0:
-                    viewer_info = f" • 👁️ {u['viewer_count']}"
+                    # Inject viewer count into the card or append it
+                    # Since create_stream_card returns a fixed string, we might need to modify it or append
+                    # Let's append it inside the card box if possible, or just below
+                    # For now, let's append it to the last line of the card
+                    card = card.replace("└────────────────────────────────┘", f"│ 👁️ {u['viewer_count']} viewers\n└────────────────────────────────┘")
                 
-                msg_text += f"{i}. {link_text}\n"
-                msg_text += f"   └ ⏱️ {time_ago}{viewer_info}\n\n"
+                msg_text += card + "\n\n"
             
             msg_text += "──────────────────\n"
             live_message = msg_text
