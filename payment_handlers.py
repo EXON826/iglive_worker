@@ -19,6 +19,7 @@ PAYMENT_PACKAGES = {
     'points_50': {'stars': 50, 'points': 50, 'title': '50 Points', 'desc': 'Get 50 points instantly'},
     'points_100': {'stars': 90, 'points': 100, 'title': '100 Points', 'desc': 'Get 100 points (10% bonus)'},
     'points_500': {'stars': 400, 'points': 500, 'title': '500 Points', 'desc': 'Get 500 points (20% bonus)'},
+    'premium_3d': {'stars': 75, 'days': 3, 'title': 'Weekend Pass', 'desc': '3 Days of Unlimited Access'},
     'premium_7d': {'stars': 150, 'days': 7, 'title': '7 Days Premium', 'desc': 'Unlimited checks for 7 days'},
     'premium_30d': {'stars': 500, 'days': 30, 'title': '30 Days Premium', 'desc': 'Unlimited checks for 30 days'},
     'premium_6m': {'stars': 2500, 'days': 180, 'title': '6 Months Premium', 'desc': 'Unlimited checks for 6 months (Save 17%)'},
@@ -64,6 +65,7 @@ async def buy_handler(session: Session, payload: dict):
         buy_text += "  • 100 Points - ⭐ 90 Stars 🎁 +10% bonus\n"
         buy_text += "  • 500 Points - ⭐ 400 Stars 🎁 +20% bonus\n\n"
         buy_text += "🌟 *Premium Packages:*\n"
+        buy_text += "  • Weekend Pass - ⭐ 75 Stars 🆕\n"
         buy_text += "  • 7 Days - ⭐ 150 Stars\n"
         buy_text += "  • 30 Days - ⭐ 500 Stars 🔥 Most Popular\n"
         buy_text += "  • 6 Months - ⭐ 2,500 Stars 💰 Save 17%\n"
@@ -81,6 +83,7 @@ async def buy_handler(session: Session, payload: dict):
                 [{"text": "💎 100 Points - ⭐ 90 🎁", "callback_data": "pay:points_100"}],
                 [{"text": "💎 500 Points - ⭐ 400 🎁", "callback_data": "pay:points_500"}],
                 [{"text": "━━━━━━━━━━━━━━━━━━━━", "callback_data": "ignore"}],
+                [{"text": "🌟 Weekend Pass - ⭐ 75 🆕", "callback_data": "pay:premium_3d"}],
                 [{"text": "🌟 7 Days - ⭐ 150", "callback_data": "pay:premium_7d"}],
                 [{"text": "🌟 30 Days - ⭐ 500 🔥", "callback_data": "pay:premium_30d"}],
                 [{"text": "🌟 6 Months - ⭐ 2,500 💰", "callback_data": "pay:premium_6m"}],
